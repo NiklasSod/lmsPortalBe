@@ -63,6 +63,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperProfile));
 
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();

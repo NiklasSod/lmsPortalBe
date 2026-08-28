@@ -70,7 +70,7 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-await app.SeedRolesAsync();
+await app.SeedAsync();
 
 if (app.Environment.IsDevelopment())
 {

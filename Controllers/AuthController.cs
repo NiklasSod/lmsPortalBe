@@ -29,7 +29,7 @@ namespace lmsPortalBe.Controllers
                 return BadRequest(result.Errors.Select(e => e.Description));
             }
 
-            var roleResult = await _userManager.AddToRoleAsync(user, dto.Role);
+            var roleResult = await _userManager.AddToRoleAsync(user, "student");
             if (!roleResult.Succeeded)
             {
                 await _userManager.DeleteAsync(user);

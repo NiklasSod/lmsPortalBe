@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using lmsPortalBe.Data;
 
@@ -11,9 +12,11 @@ using lmsPortalBe.Data;
 namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
-    partial class LmsPortalContextModelSnapshot : ModelSnapshot
+    [Migration("20260828084415_EnforceSingleRolePerUser")]
+    partial class EnforceSingleRolePerUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

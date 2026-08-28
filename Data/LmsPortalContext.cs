@@ -16,7 +16,9 @@ namespace lmsPortalBe.Data
             // Core Identity tables, named as requested.
             builder.Entity<ApplicationUser>().ToTable("lmsUser");
             builder.Entity<IdentityRole>().ToTable("lmsRole");
-            builder.Entity<IdentityUserRole<string>>().ToTable("lmsUser_Role");
+            builder.Entity<IdentityUserRole<string>>().ToTable("lmsUser_Role")
+                .HasIndex(ur => ur.UserId)
+                .IsUnique();
             builder.Entity<IdentityUserClaim<string>>().ToTable("lmsUserClaim");
             builder.Entity<IdentityUserLogin<string>>().ToTable("lmsUserLogin");
             builder.Entity<IdentityRoleClaim<string>>().ToTable("lmsRoleClaim");

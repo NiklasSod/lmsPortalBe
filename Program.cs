@@ -21,7 +21,7 @@ var jwtIssuer = builder.Configuration[JwtConstants.Issuer] ?? "lmsPortalBe";
 var jwtAudience = builder.Configuration[JwtConstants.Audience] ?? "lmsPortalBe";
 
 builder.Services.AddDbContext<LmsPortalContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlite(connectionString));
 
 builder.Services.AddScoped<ILmsPortalContext>(sp =>
     sp.GetRequiredService<LmsPortalContext>());

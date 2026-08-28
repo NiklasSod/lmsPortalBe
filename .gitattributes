@@ -1,3 +1,5 @@
 # Set default behavior to automatically normalize line endings.
 
 * text=auto eol=lf
+*.cs text eol=lf
+*.json text eol=lf

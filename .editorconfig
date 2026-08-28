@@ -1,0 +1,36 @@
+root = true
+
+# ---------- All files ----------
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# ---------- C# ----------
+[*.cs]
+# Allman-style braces (the standard C# / Visual Studio convention)
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_before_members_in_anonymous_types = true
+
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+
+csharp_prefer_braces = true:warning
+dotnet_sort_system_directives_first = true
+
+# ---------- Project / build files ----------
+[*.{csproj,props,targets,slnx}]
+indent_style = space
+indent_size = 2
+
+# ---------- JSON ----------
+[*.json]
+indent_style = space
+indent_size = 2

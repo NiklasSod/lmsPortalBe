@@ -13,9 +13,6 @@ namespace lmsPortalBe.Services;
 
 public class TokenService : ITokenService
 {
-    private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(7);
-
     private readonly IConfiguration _configuration;
     private readonly ILmsPortalContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
@@ -30,10 +27,21 @@ public class TokenService : ITokenService
         _userManager = userManager;
     }
 
+    private string Secret => _configuration[JwtConstants.Secret]
+        ?? throw new InvalidOperationException($"Missing configuration value '{JwtConstants.Secret}'.");
+    private string Issuer => _configuration[JwtConstants.Issuer] ?? "lmsPortalBe";
+    private string Audience => _configuration[JwtConstants.Audience] ?? "lmsPortalBe";
+    private TimeSpan AccessTokenLifetime =>
+        TimeSpan.FromMinutes(GetInt(JwtConstants.AccessTokenMinutes, JwtConstants.DefaultAccessTokenMinutes));
+    private TimeSpan RefreshTokenLifetime =>
+        TimeSpan.FromDays(GetInt(JwtConstants.RefreshTokenDays, JwtConstants.DefaultRefreshTokenDays));
+
+    private int GetInt(string key, int fallback) =>
+        int.TryParse(_configuration[key], out var value) ? value : fallback;
+
     public string CreateAccessToken(ApplicationUser user, IList<string> roles)
     {
-        var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_configuration["JWT_SECRET"]!));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Secret));
 
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -51,6 +59,8 @@ public class TokenService : ITokenService
         }
 
         var token = new JwtSecurityToken(
+            issuer: Issuer,
+            audience: Audience,
             claims: claims,
             expires: DateTime.UtcNow.Add(AccessTokenLifetime),
             signingCredentials: credentials);
@@ -89,8 +99,16 @@ public class TokenService : ITokenService
         var storedToken = await _context.RefreshTokens
             .FirstOrDefaultAsync(t => t.TokenHash == tokenHash);
 
-        if (storedToken is null || storedToken.IsRevoked || storedToken.Expires <= DateTime.UtcNow)
+        if (storedToken is null || storedToken.Expires <= DateTime.UtcNow)
         {
+            throw new UnauthorizedAccessException("Invalid or expired refresh token.");
+        }
+
+        // Reuse detection: presenting an already-rotated/revoked token is a strong
+        // signal of theft, so revoke every active token for that user.
+        if (storedToken.IsRevoked)
+        {
+            await RevokeAllForUserAsync(storedToken.UserId);
             throw new UnauthorizedAccessException("Invalid or expired refresh token.");
         }
 
@@ -100,12 +118,32 @@ public class TokenService : ITokenService
             throw new UnauthorizedAccessException("User not found for refresh token.");
         }
 
-        // Revoke the old refresh token (rotation) before issuing a new one.
-        storedToken.IsRevoked = true;
-        await _context.SaveChangesAsync();
+        // Revoke the old token and issue the new pair atomically so a failure
+        // cannot leave the user with a revoked token and no replacement.
+        await using var transaction = await _context.Database.BeginTransactionAsync();
 
-        var roles = await _userManager.GetRolesAsync(user);
-        return await CreateTokensAsync(user, roles);
+        try
+        {
+            storedToken.IsRevoked = true;
+
+            var roles = await _userManager.GetRolesAsync(user);
+            var response = await CreateTokensAsync(user, roles);
+
+            await transaction.CommitAsync();
+            return response;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    private async Task RevokeAllForUserAsync(string userId)
+    {
+        await _context.RefreshTokens
+            .Where(t => t.UserId == userId && !t.IsRevoked)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.IsRevoked, true));
     }
 
     public async Task RevokeRefreshTokenAsync(string refreshToken)
@@ -124,7 +162,6 @@ public class TokenService : ITokenService
 
     private static string CreateRefreshToken()
     {
-        // 64 random bytes -> URL-safe base64 string without padding.
         return Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
             .TrimEnd('=')
             .Replace('+', '-')
@@ -137,7 +174,7 @@ public class TokenService : ITokenService
         return Convert.ToHexString(bytes);
     }
 
-    private static DateTime GetRefreshTokenExpiry()
+    private DateTime GetRefreshTokenExpiry()
     {
         return DateTime.UtcNow.Add(RefreshTokenLifetime);
     }

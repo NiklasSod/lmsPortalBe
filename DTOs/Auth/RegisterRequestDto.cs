@@ -19,8 +19,4 @@ public class RegisterRequestDto
     [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$",
         ErrorMessage = "Password must contain at least one lowercase letter, one uppercase letter, and one digit.")]
     public string Password { get; set; } = string.Empty;
-
-    [Required]
-    [RegularExpression("^(student|teacher)$", ErrorMessage = "Role must be either 'student' or 'teacher'.")]
-    public string Role { get; set; } = string.Empty;
 }

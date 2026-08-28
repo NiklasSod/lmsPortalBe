@@ -1,17 +1,22 @@
+using lmsPortalBe.Data;
 using lmsPortalBe.DTOs.Auth;
 using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace lmsPortalBe.Controllers
 {
   [ApiController]
   [Route("api/[controller]")]
   [Authorize(Roles = "admin")]
-  public class AdminController(UserManager<ApplicationUser> userManager) : ControllerBase
+  public class AdminController(
+      UserManager<ApplicationUser> userManager,
+      ILmsPortalContext context) : ControllerBase
   {
     private readonly UserManager<ApplicationUser> _userManager = userManager;
+    private readonly ILmsPortalContext _context = context;
 
     [HttpPost("assign-role")]
     public async Task<IActionResult> AssignRole(AssignRoleRequestDto dto)
@@ -22,21 +27,32 @@ namespace lmsPortalBe.Controllers
         return NotFound("User not found.");
       }
 
-      // Keep student/teacher mutually exclusive. The admin role is never
-      // touched here to avoid privilege escalation.
-      foreach (var role in new[] { "student", "teacher" })
+      var targetRole = dto.Role.Trim().ToLowerInvariant();
+      var conflictingRole = targetRole == "student" ? "teacher" : "student";
+
+      await using var transaction = await _context.Database.BeginTransactionAsync();
+
+      var currentRoles = await _userManager.GetRolesAsync(user);
+
+      if (currentRoles.Contains(conflictingRole, StringComparer.OrdinalIgnoreCase))
       {
-        if (await _userManager.IsInRoleAsync(user, role))
+        var removeResult = await _userManager.RemoveFromRoleAsync(user, conflictingRole);
+        if (!removeResult.Succeeded)
         {
-          await _userManager.RemoveFromRoleAsync(user, role);
+          return BadRequest(removeResult.Errors.Select(e => e.Description));
         }
       }
 
-      var result = await _userManager.AddToRoleAsync(user, dto.Role);
-      if (!result.Succeeded)
+      if (!currentRoles.Contains(targetRole, StringComparer.OrdinalIgnoreCase))
       {
-        return BadRequest(result.Errors.Select(e => e.Description));
+        var addResult = await _userManager.AddToRoleAsync(user, targetRole);
+        if (!addResult.Succeeded)
+        {
+          return BadRequest(addResult.Errors.Select(e => e.Description));
+        }
       }
+
+      await transaction.CommitAsync();
 
       return NoContent();
     }

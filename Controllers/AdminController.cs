@@ -30,9 +30,14 @@ namespace lmsPortalBe.Controllers
       var targetRole = dto.Role.Trim().ToLowerInvariant();
       var conflictingRole = targetRole == "student" ? "teacher" : "student";
 
-      await using var transaction = await _context.Database.BeginTransactionAsync();
-
       var currentRoles = await _userManager.GetRolesAsync(user);
+
+      if (currentRoles.Contains("admin", StringComparer.OrdinalIgnoreCase))
+      {
+        return BadRequest("Cannot assign a student or teacher role to an administrator.");
+      }
+
+      await using var transaction = await _context.Database.BeginTransactionAsync();
 
       if (currentRoles.Contains(conflictingRole, StringComparer.OrdinalIgnoreCase))
       {

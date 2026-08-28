@@ -16,6 +16,8 @@ public class RegisterRequestDto
 
     [Required]
     [MinLength(8)]
+    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$",
+        ErrorMessage = "Password must contain at least one lowercase letter, one uppercase letter, and one digit.")]
     public string Password { get; set; } = string.Empty;
 
     [Required]

@@ -48,25 +48,31 @@ public static class DbSeeder
       IConfiguration configuration,
       ILogger logger)
   {
+    var username = configuration["ADMIN_USERNAME"];
     var email = configuration["ADMIN_EMAIL"];
     var password = configuration["ADMIN_PASSWORD"];
+    var firstName = configuration["ADMIN_FIRST_NAME"];
+    var lastName = configuration["ADMIN_LAST_NAME"];
 
-    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+    if (string.IsNullOrWhiteSpace(username) ||
+        string.IsNullOrWhiteSpace(email) ||
+        string.IsNullOrWhiteSpace(password))
     {
       logger.LogInformation("Admin credentials not configured; skipping admin user seeding.");
       return;
     }
 
-    var admin = await userManager.FindByEmailAsync(email);
+    var admin = await userManager.FindByEmailAsync(email)
+        ?? await userManager.FindByNameAsync(username);
     if (admin is null)
     {
       admin = new ApplicationUser
       {
-        UserName = email,
+        UserName = username,
         Email = email,
         EmailConfirmed = true,
-        FirstName = "John",
-        LastName = "Doe"
+        FirstName = firstName ?? string.Empty,
+        LastName = lastName ?? string.Empty
       };
 
       var createResult = await userManager.CreateAsync(admin, password);

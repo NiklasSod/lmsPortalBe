@@ -10,6 +10,7 @@ namespace lmsPortalBe.MappingProfiles
         {
             CreateMap<RegisterRequestDto, ApplicationUser>(MemberList.None)
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.Email));
+            CreateMap<CourseSummaryDto, CourseModel>(MemberList.None);
         }
     }
 }

@@ -7,6 +7,7 @@ namespace lmsPortalBe.Data
     public interface ILmsPortalContext
     {
         DbSet<RefreshToken> RefreshTokens { get; set; }
+        DbSet<CourseModel> Courses { get; set; }
 
         DatabaseFacade Database { get; }
 

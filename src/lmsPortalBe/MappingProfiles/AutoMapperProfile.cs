@@ -8,7 +8,7 @@ namespace lmsPortalBe.MappingProfiles
     {
         public AutoMapperProfile()
         {
-            CreateMap<RegisterRequestDto, ApplicationUser>()
+            CreateMap<RegisterRequestDto, ApplicationUser>(MemberList.None)
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.Email));
         }
     }

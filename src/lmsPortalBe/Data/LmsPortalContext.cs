@@ -8,6 +8,7 @@ namespace lmsPortalBe.Data
     public class LmsPortalContext(DbContextOptions<LmsPortalContext> options) : IdentityDbContext<ApplicationUser>(options), ILmsPortalContext
     {
         public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+        public DbSet<CourseModel> Courses { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -34,6 +35,15 @@ namespace lmsPortalBe.Data
                     .WithMany()
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<CourseModel>(entity =>
+            {
+                entity.ToTable("lmsCourse");
+
+                entity.HasIndex(e => e.Id).IsUnique();
+
+                entity.HasMany(e => e.Users);
             });
         }
     }

@@ -1,3 +1,8 @@
 <Solution>
-  <Project Path="lmsPortalBe.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/lmsPortalBe/lmsPortalBe.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/lmsPortalBe.Tests/lmsPortalBe.Tests.csproj" />
+  </Folder>
 </Solution>

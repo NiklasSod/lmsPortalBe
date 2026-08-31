@@ -59,6 +59,8 @@ public class AuthControllerTests : ApiTestBase, IClassFixture<TestWebApplication
     var body = await response.Content.ReadFromJsonAsync<AuthResponseDto>(TestContext.Current.CancellationToken);
     Assert.NotNull(body);
     Assert.False(string.IsNullOrWhiteSpace(body.AccessToken));
+    Assert.False(string.IsNullOrWhiteSpace(body.RefreshToken));
+    Assert.NotEqual(default, body.ExpiresAt);
   }
 
   [Fact]
@@ -88,7 +90,15 @@ public class AuthControllerTests : ApiTestBase, IClassFixture<TestWebApplication
 
     var body = await response.Content.ReadFromJsonAsync<AuthResponseDto>(TestContext.Current.CancellationToken);
     Assert.NotNull(body);
+    Assert.False(string.IsNullOrWhiteSpace(body.RefreshToken));
     Assert.NotEqual(tokens.RefreshToken, body.RefreshToken);
+
+    // The rotated token must be persisted and usable for another refresh.
+    var reuse = await Client.PostAsJsonAsync(
+        "/api/auth/refresh",
+        new RefreshRequestDto { RefreshToken = body.RefreshToken },
+        TestContext.Current.CancellationToken);
+    Assert.Equal(HttpStatusCode.OK, reuse.StatusCode);
   }
 
   [Fact]

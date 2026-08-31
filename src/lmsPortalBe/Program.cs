@@ -89,10 +89,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-/// <summary>
-/// Entry point marker required by <c>WebApplicationFactory&lt;Program&gt;</c> in the
-/// integration tests. The compiler-generated Program class is internal, so this
-/// public partial declaration makes it accessible to the test project.
-/// </summary>
-public partial class Program { }

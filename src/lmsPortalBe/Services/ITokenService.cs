@@ -1,5 +1,4 @@
-﻿using lmsPortalBe.DTOs.Auth;
-using lmsPortalBe.Models;
+﻿using lmsPortalBe.Models;
 
 namespace lmsPortalBe.Services
 {
@@ -7,9 +6,9 @@ namespace lmsPortalBe.Services
     {
         string CreateAccessToken(ApplicationUser user, IList<string> roles);
 
-        Task<AuthResponseDto> CreateTokensAsync(ApplicationUser user, IList<string> roles);
+        Task<AuthTokens> CreateTokensAsync(ApplicationUser user, IList<string> roles);
 
-        Task<AuthResponseDto> RefreshTokenAsync(string refreshToken);
+        Task<AuthTokens> RefreshTokenAsync(string refreshToken);
 
         Task RevokeRefreshTokenAsync(string refreshToken);
     }

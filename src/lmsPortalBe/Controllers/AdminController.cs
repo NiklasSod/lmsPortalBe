@@ -1,10 +1,9 @@
 using lmsPortalBe.Data;
-using lmsPortalBe.DTOs.Auth;
+using lmsPortalBe.DTOs.Admin;
 using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace lmsPortalBe.Controllers
 {

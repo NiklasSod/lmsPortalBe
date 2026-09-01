@@ -46,6 +46,11 @@ namespace lmsPortalBe.Data
                     .WithOne(e => e.Course)
                     .HasForeignKey(e => e.CourseId)
                     .OnDelete(DeleteBehavior.Cascade);
+                
+                entity.HasMany(e => e.Modules)
+                    .WithOne(e => e.Course)
+                    .HasForeignKey(e => e.CourseId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<CourseEnrollment>(entity =>
@@ -58,6 +63,11 @@ namespace lmsPortalBe.Data
                     .WithMany(u => u.Enrollments)
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<CourseModule>(entity =>
+            {
+                entity.ToTable("lmsCourseModule");
             });
         }
     }

@@ -3,7 +3,6 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using lmsPortalBe.Data;
-using lmsPortalBe.DTOs.Auth;
 using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -68,31 +67,33 @@ public class TokenService : ITokenService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public async Task<AuthResponseDto> CreateTokensAsync(ApplicationUser user, IList<string> roles)
+    public async Task<AuthTokens> CreateTokensAsync(ApplicationUser user, IList<string> roles)
     {
         var accessToken = CreateAccessToken(user, roles);
         var refreshToken = CreateRefreshToken();
+        var refreshTokenExpiry = GetRefreshTokenExpiry();
 
         _context.RefreshTokens.Add(new RefreshToken
         {
             TokenHash = HashRefreshToken(refreshToken),
             UserId = user.Id,
-            Expires = GetRefreshTokenExpiry(),
+            Expires = refreshTokenExpiry,
             IsRevoked = false,
             CreatedAt = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
 
-        return new AuthResponseDto
+        return new AuthTokens
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
-            ExpiresAt = DateTime.UtcNow.Add(AccessTokenLifetime)
+            ExpiresAt = DateTime.UtcNow.Add(AccessTokenLifetime),
+            RefreshTokenExpiresAt = refreshTokenExpiry
         };
     }
 
-    public async Task<AuthResponseDto> RefreshTokenAsync(string refreshToken)
+    public async Task<AuthTokens> RefreshTokenAsync(string refreshToken)
     {
         var tokenHash = HashRefreshToken(refreshToken);
 

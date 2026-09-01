@@ -19,6 +19,7 @@ var jwtSecret = builder.Configuration[JwtConstants.Secret]
     ?? throw new InvalidOperationException($"JWT configuration '{JwtConstants.Secret}' is missing.");
 var jwtIssuer = builder.Configuration[JwtConstants.Issuer] ?? "lmsPortalBe";
 var jwtAudience = builder.Configuration[JwtConstants.Audience] ?? "lmsPortalBe";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 
 builder.Services.AddDbContext<LmsPortalContext>(options =>
     options.UseSqlite(connectionString));
@@ -60,6 +61,15 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+        policy.WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials());
+});
+
 builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperProfile));
 
 builder.Services.AddScoped<ITokenService, TokenService>();
@@ -84,6 +94,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

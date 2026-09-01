@@ -11,7 +11,7 @@ public class AuthControllerTests : ApiTestBase, IClassFixture<TestWebApplication
   }
 
   [Fact]
-  public async Task Register_WithValidRequest_ReturnsTokenPair()
+  public async Task Register_WithValidRequest_ReturnsAccessTokenAndSetsRefreshCookie()
   {
     var response = await Client.PostAsJsonAsync("/api/auth/register", RegisterRequest("register.ok@example.com"), TestContext.Current.CancellationToken);
 
@@ -20,8 +20,9 @@ public class AuthControllerTests : ApiTestBase, IClassFixture<TestWebApplication
     var body = await response.Content.ReadFromJsonAsync<AuthResponseDto>(TestContext.Current.CancellationToken);
     Assert.NotNull(body);
     Assert.False(string.IsNullOrWhiteSpace(body.AccessToken));
-    Assert.False(string.IsNullOrWhiteSpace(body.RefreshToken));
     Assert.NotEqual(default, body.ExpiresAt);
+
+    Assert.False(string.IsNullOrWhiteSpace(ReadRefreshTokenCookie(response)));
   }
 
   [Fact]
@@ -45,7 +46,7 @@ public class AuthControllerTests : ApiTestBase, IClassFixture<TestWebApplication
   }
 
   [Fact]
-  public async Task Login_WithValidCredentials_ReturnsTokenPair()
+  public async Task Login_WithValidCredentials_ReturnsAccessTokenAndSetsRefreshCookie()
   {
     await RegisterAsync("login.ok@example.com");
 
@@ -59,8 +60,9 @@ public class AuthControllerTests : ApiTestBase, IClassFixture<TestWebApplication
     var body = await response.Content.ReadFromJsonAsync<AuthResponseDto>(TestContext.Current.CancellationToken);
     Assert.NotNull(body);
     Assert.False(string.IsNullOrWhiteSpace(body.AccessToken));
-    Assert.False(string.IsNullOrWhiteSpace(body.RefreshToken));
     Assert.NotEqual(default, body.ExpiresAt);
+
+    Assert.False(string.IsNullOrWhiteSpace(ReadRefreshTokenCookie(response)));
   }
 
   [Fact]
@@ -77,37 +79,31 @@ public class AuthControllerTests : ApiTestBase, IClassFixture<TestWebApplication
   }
 
   [Fact]
-  public async Task Refresh_WithValidToken_ReturnsNewTokenPair()
+  public async Task Refresh_WithValidCookie_RotatesRefreshToken()
   {
-    var tokens = await RegisterAsync("refresh.ok@example.com");
+    var tokens = await RegisterWithTokensAsync("refresh.ok@example.com");
 
-    var response = await Client.PostAsJsonAsync(
-        "/api/auth/refresh",
-        new RefreshRequestDto { RefreshToken = tokens.RefreshToken },
-        TestContext.Current.CancellationToken);
+    var response = await Client.PostAsync("/api/auth/refresh", null, TestContext.Current.CancellationToken);
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
     var body = await response.Content.ReadFromJsonAsync<AuthResponseDto>(TestContext.Current.CancellationToken);
     Assert.NotNull(body);
-    Assert.False(string.IsNullOrWhiteSpace(body.RefreshToken));
-    Assert.NotEqual(tokens.RefreshToken, body.RefreshToken);
+    Assert.False(string.IsNullOrWhiteSpace(body.AccessToken));
 
-    // The rotated token must be persisted and usable for another refresh.
-    var reuse = await Client.PostAsJsonAsync(
-        "/api/auth/refresh",
-        new RefreshRequestDto { RefreshToken = body.RefreshToken },
-        TestContext.Current.CancellationToken);
+    var rotated = ReadRefreshTokenCookie(response);
+    Assert.False(string.IsNullOrWhiteSpace(rotated));
+    Assert.NotEqual(tokens.RefreshToken, rotated);
+
+    // The client persists the rotated cookie, so a second refresh succeeds.
+    var reuse = await Client.PostAsync("/api/auth/refresh", null, TestContext.Current.CancellationToken);
     Assert.Equal(HttpStatusCode.OK, reuse.StatusCode);
   }
 
   [Fact]
-  public async Task Refresh_WithInvalidToken_ReturnsUnauthorized()
+  public async Task Refresh_WithoutCookie_ReturnsUnauthorized()
   {
-    var response = await Client.PostAsJsonAsync(
-        "/api/auth/refresh",
-        new RefreshRequestDto { RefreshToken = "not-a-real-token" },
-        TestContext.Current.CancellationToken);
+    var response = await Client.PostAsync("/api/auth/refresh", null, TestContext.Current.CancellationToken);
 
     Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
   }
@@ -115,18 +111,12 @@ public class AuthControllerTests : ApiTestBase, IClassFixture<TestWebApplication
   [Fact]
   public async Task Logout_RevokesRefreshToken()
   {
-    var tokens = await RegisterAsync("logout.ok@example.com");
+    await RegisterAsync("logout.ok@example.com");
 
-    var logout = await Client.PostAsJsonAsync(
-        "/api/auth/logout",
-        new RefreshRequestDto { RefreshToken = tokens.RefreshToken },
-        TestContext.Current.CancellationToken);
+    var logout = await Client.PostAsync("/api/auth/logout", null, TestContext.Current.CancellationToken);
     Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
 
-    var refresh = await Client.PostAsJsonAsync(
-        "/api/auth/refresh",
-        new RefreshRequestDto { RefreshToken = tokens.RefreshToken },
-        TestContext.Current.CancellationToken);
+    var refresh = await Client.PostAsync("/api/auth/refresh", null, TestContext.Current.CancellationToken);
     Assert.Equal(HttpStatusCode.Unauthorized, refresh.StatusCode);
   }
 }

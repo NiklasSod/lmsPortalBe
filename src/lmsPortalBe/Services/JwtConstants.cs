@@ -10,4 +10,6 @@ public static class JwtConstants
 
     public const int DefaultAccessTokenMinutes = 30;
     public const int DefaultRefreshTokenDays = 7;
+
+    public const string RefreshTokenCookie = "refresh_token";
 }

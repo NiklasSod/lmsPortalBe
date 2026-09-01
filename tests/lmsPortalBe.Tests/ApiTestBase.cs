@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using lmsPortalBe.DTOs.Auth;
+using lmsPortalBe.Services;
 
 namespace lmsPortalBe.Tests;
 
@@ -44,6 +45,42 @@ public abstract class ApiTestBase
         TestContext.Current.CancellationToken);
     response.EnsureSuccessStatusCode();
     return (await response.Content.ReadFromJsonAsync<AuthResponseDto>(TestContext.Current.CancellationToken))!;
+  }
+
+  protected sealed record AuthResult(AuthResponseDto Body, string RefreshToken);
+
+  protected async Task<AuthResult> RegisterWithTokensAsync(string email, string password = "Passw0rd1")
+  {
+    var response = await Client.PostAsJsonAsync(
+        "/api/auth/register",
+        RegisterRequest(email, password),
+        TestContext.Current.CancellationToken);
+    response.EnsureSuccessStatusCode();
+
+    var body = (await response.Content.ReadFromJsonAsync<AuthResponseDto>(TestContext.Current.CancellationToken))!;
+    return new AuthResult(body, ReadRefreshTokenCookie(response));
+  }
+
+  protected static string ReadRefreshTokenCookie(HttpResponseMessage response)
+  {
+    if (response.Headers.TryGetValues("Set-Cookie", out var setCookies))
+    {
+      foreach (var setCookie in setCookies)
+      {
+        var name = JwtConstants.RefreshTokenCookie + "=";
+        var index = setCookie.IndexOf(name, StringComparison.OrdinalIgnoreCase);
+        if (index >= 0)
+        {
+          var valueStart = index + name.Length;
+          var valueEnd = setCookie.IndexOf(';', valueStart);
+          return valueEnd >= 0
+              ? setCookie[valueStart..valueEnd]
+              : setCookie[valueStart..];
+        }
+      }
+    }
+
+    return string.Empty;
   }
 
   protected async Task<HttpResponseMessage> SendAuthorizedAsync(

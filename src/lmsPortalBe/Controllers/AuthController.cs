@@ -12,11 +12,13 @@ namespace lmsPortalBe.Controllers
     public class AuthController(
         UserManager<ApplicationUser> userManager,
         ITokenService tokenService,
-        IMapper mapper) : ControllerBase
+        IMapper mapper,
+        IWebHostEnvironment environment) : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager = userManager;
         private readonly ITokenService _tokenService = tokenService;
         private readonly IMapper _mapper = mapper;
+        private readonly IWebHostEnvironment _environment = environment;
 
         [HttpPost("register")]
         public async Task<ActionResult<AuthResponseDto>> Register(RegisterRequestDto dto)
@@ -37,7 +39,9 @@ namespace lmsPortalBe.Controllers
             }
 
             var roles = await _userManager.GetRolesAsync(user);
-            return await _tokenService.CreateTokensAsync(user, roles);
+            var tokens = await _tokenService.CreateTokensAsync(user, roles);
+
+            return IssueTokens(tokens);
         }
 
         [HttpPost("login")]
@@ -50,15 +54,24 @@ namespace lmsPortalBe.Controllers
             }
 
             var roles = await _userManager.GetRolesAsync(user);
-            return await _tokenService.CreateTokensAsync(user, roles);
+            var tokens = await _tokenService.CreateTokensAsync(user, roles);
+
+            return IssueTokens(tokens);
         }
 
         [HttpPost("refresh")]
-        public async Task<ActionResult<AuthResponseDto>> Refresh(RefreshRequestDto dto)
+        public async Task<ActionResult<AuthResponseDto>> Refresh()
         {
+            var refreshToken = Request.Cookies[JwtConstants.RefreshTokenCookie];
+            if (string.IsNullOrWhiteSpace(refreshToken))
+            {
+                return Unauthorized("Missing refresh token.");
+            }
+
             try
             {
-                return await _tokenService.RefreshTokenAsync(dto.RefreshToken);
+                var tokens = await _tokenService.RefreshTokenAsync(refreshToken);
+                return IssueTokens(tokens);
             }
             catch (UnauthorizedAccessException)
             {
@@ -67,10 +80,47 @@ namespace lmsPortalBe.Controllers
         }
 
         [HttpPost("logout")]
-        public async Task<IActionResult> Logout(RefreshRequestDto dto)
+        public async Task<IActionResult> Logout()
         {
-            await _tokenService.RevokeRefreshTokenAsync(dto.RefreshToken);
+            var refreshToken = Request.Cookies[JwtConstants.RefreshTokenCookie];
+            if (!string.IsNullOrWhiteSpace(refreshToken))
+            {
+                await _tokenService.RevokeRefreshTokenAsync(refreshToken);
+            }
+
+            Response.Cookies.Delete(JwtConstants.RefreshTokenCookie, BuildCookieOptions());
             return NoContent();
         }
+
+        private AuthResponseDto IssueTokens(AuthTokens tokens)
+        {
+            SetRefreshTokenCookie(tokens);
+
+            return new AuthResponseDto
+            {
+                AccessToken = tokens.AccessToken,
+                ExpiresAt = tokens.ExpiresAt
+            };
+        }
+
+        private void SetRefreshTokenCookie(AuthTokens tokens)
+        {
+            Response.Cookies.Append(
+                JwtConstants.RefreshTokenCookie,
+                tokens.RefreshToken,
+                BuildCookieOptions(tokens.RefreshTokenExpiresAt));
+        }
+
+        private CookieOptions BuildCookieOptions(DateTime? expires = null) => new()
+        {
+            HttpOnly = true,
+            Secure = _environment.IsProduction(),
+            // In production the SPA and API usually live on different origins, so the
+            // cookie has to be sent cross-site (None). In development (Vite on
+            // localhost) Strict keeps the same-site cookie tight.
+            SameSite = _environment.IsProduction() ? SameSiteMode.None : SameSiteMode.Strict,
+            Path = "/",
+            Expires = expires.HasValue ? new DateTimeOffset(expires.Value) : null
+        };
     }
 }

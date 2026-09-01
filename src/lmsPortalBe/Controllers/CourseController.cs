@@ -125,7 +125,7 @@ namespace lmsPortalBe.Controllers
       }
 
       var userId = CurrentUserId;
-      var role = User.IsInRole("teacher") ? CourseRole.Teacher : CourseRole.Student;
+      var role = User.IsInRole("teacher") || User.IsInRole("admin") ? CourseRole.Teacher : CourseRole.Student;
 
       if (await _context.CourseEnrollments
               .AnyAsync(e => e.UserId == userId && e.CourseId == course.Id))

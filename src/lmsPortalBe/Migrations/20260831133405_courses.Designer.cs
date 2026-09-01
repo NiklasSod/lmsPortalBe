@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using lmsPortalBe.Data;
 
@@ -10,9 +11,11 @@ using lmsPortalBe.Data;
 namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
-    partial class LmsPortalContextModelSnapshot : ModelSnapshot
+    [Migration("20260831133405_courses")]
+    partial class courses
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -160,6 +163,9 @@ namespace lmsPortalBe.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("CourseModelId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
@@ -210,6 +216,8 @@ namespace lmsPortalBe.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CourseModelId");
+
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
 
@@ -218,35 +226,6 @@ namespace lmsPortalBe.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("lmsUser", (string)null);
-                });
-
-            modelBuilder.Entity("lmsPortalBe.Models.CourseEnrollment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("CourseId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("EnrolledAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CourseId");
-
-                    b.HasIndex("UserId", "CourseId")
-                        .IsUnique();
-
-                    b.ToTable("lmsCourseEnrollment", (string)null);
                 });
 
             modelBuilder.Entity("lmsPortalBe.Models.CourseModel", b =>
@@ -270,6 +249,9 @@ namespace lmsPortalBe.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Id")
+                        .IsUnique();
 
                     b.ToTable("lmsCourse", (string)null);
                 });
@@ -358,23 +340,11 @@ namespace lmsPortalBe.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("lmsPortalBe.Models.CourseEnrollment", b =>
+            modelBuilder.Entity("lmsPortalBe.Models.ApplicationUser", b =>
                 {
-                    b.HasOne("lmsPortalBe.Models.CourseModel", "Course")
-                        .WithMany("Enrollments")
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("lmsPortalBe.Models.ApplicationUser", "User")
-                        .WithMany("Enrollments")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Course");
-
-                    b.Navigation("User");
+                    b.HasOne("lmsPortalBe.Models.CourseModel", null)
+                        .WithMany("Users")
+                        .HasForeignKey("CourseModelId");
                 });
 
             modelBuilder.Entity("lmsPortalBe.Models.RefreshToken", b =>
@@ -388,14 +358,9 @@ namespace lmsPortalBe.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("lmsPortalBe.Models.ApplicationUser", b =>
-                {
-                    b.Navigation("Enrollments");
-                });
-
             modelBuilder.Entity("lmsPortalBe.Models.CourseModel", b =>
                 {
-                    b.Navigation("Enrollments");
+                    b.Navigation("Users");
                 });
 #pragma warning restore 612, 618
         }

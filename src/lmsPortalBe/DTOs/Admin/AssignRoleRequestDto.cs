@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace lmsPortalBe.DTOs.Auth;
+namespace lmsPortalBe.DTOs.Admin;
 
 public class AssignRoleRequestDto
 {

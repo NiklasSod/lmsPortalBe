@@ -4,6 +4,11 @@
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
 lmsPortalBe.db
+lmsPortalBe.db-shm
+lmsPortalBe.db-wal
+design-time.db
+*.db-shm
+*.db-wal
 
 # Secrets (never commit)
 .env

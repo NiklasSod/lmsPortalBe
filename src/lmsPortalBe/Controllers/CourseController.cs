@@ -11,7 +11,7 @@ namespace lmsPortalBe.Controllers
 {
   [ApiController]
   [Route("api/[controller]")]
-  [Authorize(Roles = "student,teacher")]
+  [Authorize]
   public class CoursesController(
       ILmsPortalContext context,
       IMapper mapper) : ControllerBase
@@ -50,7 +50,7 @@ namespace lmsPortalBe.Controllers
     }
 
     [HttpPost]
-    [Authorize(Roles = "teacher")]
+    [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> CreateCourse(CreateCourseRequestDto dto)
     {
       if (dto.EndDate <= dto.StartDate)
@@ -80,7 +80,7 @@ namespace lmsPortalBe.Controllers
     }
 
     [HttpPatch("{id:int}")]
-    [Authorize(Roles = "teacher")]
+    [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> UpdateCourse(int id, UpdateCourseRequestDto dto)
     {
       var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == id);
@@ -160,7 +160,7 @@ namespace lmsPortalBe.Controllers
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "teacher")]
+    [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> DeleteCourse(int id)
     {
       var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == id);

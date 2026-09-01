@@ -6,5 +6,6 @@ namespace lmsPortalBe.Models
     {
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
+        public ICollection<CourseEnrollment> Enrollments { get; set; } = [];
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using lmsPortalBe.Data;
 
@@ -10,9 +11,11 @@ using lmsPortalBe.Data;
 namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
-    partial class LmsPortalContextModelSnapshot : ModelSnapshot
+    [Migration("20260901115729_modules")]
+    partial class modules
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -283,6 +286,9 @@ namespace lmsPortalBe.Migrations
                     b.Property<int>("CourseId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("CourseModelId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -300,6 +306,8 @@ namespace lmsPortalBe.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CourseId");
+
+                    b.HasIndex("CourseModelId");
 
                     b.ToTable("lmsCourseModule", (string)null);
                 });
@@ -410,10 +418,14 @@ namespace lmsPortalBe.Migrations
             modelBuilder.Entity("lmsPortalBe.Models.CourseModule", b =>
                 {
                     b.HasOne("lmsPortalBe.Models.CourseModel", "Course")
-                        .WithMany("Modules")
+                        .WithMany()
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("lmsPortalBe.Models.CourseModel", null)
+                        .WithMany("Modules")
+                        .HasForeignKey("CourseModelId");
 
                     b.Navigation("Course");
                 });

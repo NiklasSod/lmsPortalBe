@@ -135,6 +135,22 @@ public static class DbSeeder
     context.Courses.Add(historyCourse);
     await context.SaveChangesAsync();
 
+    var modules = new (string Name, string Description, DateTime StartDate, DateTime EndDate, CourseModel Course)[]
+    {
+      ("Algebra 101", "Learn the basics of algebra", new DateTime(2026, 9, 14, 9, 0, 0), new DateTime(2026, 10, 18, 17, 0, 0), mathCourse),
+      ("Geometry 101", "Learn the basics of geometry", new DateTime(2026, 10, 19, 17, 0, 0), new DateTime(2026, 12, 18, 17, 0, 0), mathCourse),
+      ("Ancient egypt", "They had pyramids", new DateTime(2026, 9, 14, 9, 0, 0), new DateTime(2026, 10, 18, 17, 0, 0), historyCourse),
+      ("Ancient maya", "Also had pyramids", new DateTime(2026, 10, 19, 17, 0, 0), new DateTime(2026, 12, 18, 17, 0, 0), historyCourse),
+    };
+
+    foreach (var (name, description, start, end, course) in modules) 
+    {
+      var module = new CourseModule{Name = name, Description= description, StartDate = start, EndDate = end, Course = course, CourseId = course.Id };
+      context.CourseModules.Add(module);
+    }
+
+    await context.SaveChangesAsync();
+
     var teachers = new (string FirstName, string LastName, CourseModel Course)[]
     {
       ("Alan", "Turing", mathCourse),

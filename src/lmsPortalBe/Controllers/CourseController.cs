@@ -79,6 +79,42 @@ namespace lmsPortalBe.Controllers
       return CreatedAtAction(nameof(GetCourse), new { id = course.Id }, _mapper.Map<CourseSummaryDto>(course));
     }
 
+    [HttpPatch("{id:int}")]
+    [Authorize(Roles = "teacher")]
+    public async Task<IActionResult> UpdateCourse(int id, UpdateCourseRequestDto dto)
+    {
+      var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == id);
+      if (course is null)
+      {
+        return NotFound();
+      }
+
+      var startDate = dto.StartDate ?? course.StartDate;
+      var endDate = dto.EndDate ?? course.EndDate;
+
+      if (endDate <= startDate)
+      {
+        return BadRequest("The course seem to end before it starts, check the start and end dates.");
+      }
+
+      if (dto.Name is not null)
+      {
+        course.Name = dto.Name;
+      }
+
+      if (dto.Description is not null)
+      {
+        course.Description = dto.Description;
+      }
+
+      course.StartDate = startDate;
+      course.EndDate = endDate;
+
+      await _context.SaveChangesAsync();
+
+      return Ok(_mapper.Map<CourseSummaryDto>(course));
+    }
+
     [HttpPost("enroll")]
     public async Task<IActionResult> Enroll(EnrollRequestDto dto)
     {

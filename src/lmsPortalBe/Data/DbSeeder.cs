@@ -1,5 +1,6 @@
 using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -20,6 +21,7 @@ public static class DbSeeder
 
     var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+    var context = services.GetRequiredService<ILmsPortalContext>();
     var configuration = services.GetRequiredService<IConfiguration>();
     var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(DbSeeder));
 
@@ -41,6 +43,7 @@ public static class DbSeeder
     }
 
     await SeedAdminUserAsync(userManager, configuration, logger);
+    await SeedDemoDataAsync(userManager, context, logger);
   }
 
   private static async Task SeedAdminUserAsync(
@@ -97,5 +100,149 @@ public static class DbSeeder
             string.Join(", ", roleResult.Errors.Select(e => e.Description)));
       }
     }
+  }
+
+  private static async Task SeedDemoDataAsync(
+      UserManager<ApplicationUser> userManager,
+      ILmsPortalContext context,
+      ILogger logger)
+  {
+    const string demoPassword = "Passw0rd1";
+
+    if (await context.Courses.AnyAsync())
+    {
+      logger.LogInformation("Demo data already present; skipping demo seeding.");
+      return;
+    }
+
+    var mathCourse = new CourseModel
+    {
+      Name = "Mathematics 101",
+      Description = "Introduction to algebra and geometry.",
+      StartDate = new DateTime(2026, 9, 14, 9, 0, 0),
+      EndDate = new DateTime(2026, 12, 18, 17, 0, 0)
+    };
+
+    var historyCourse = new CourseModel
+    {
+      Name = "History 101",
+      Description = "A survey of world history.",
+      StartDate = new DateTime(2026, 9, 14, 9, 0, 0),
+      EndDate = new DateTime(2026, 12, 18, 17, 0, 0)
+    };
+
+    context.Courses.Add(mathCourse);
+    context.Courses.Add(historyCourse);
+    await context.SaveChangesAsync();
+
+    var teachers = new (string FirstName, string LastName, CourseModel Course)[]
+    {
+      ("Alan", "Turing", mathCourse),
+      ("Marie", "Curie", historyCourse)
+    };
+
+    foreach (var (firstName, lastName, course) in teachers)
+    {
+      var email = $"{firstName}.{lastName}@example.com".ToLowerInvariant();
+      var teacher = await CreateDemoUserAsync(
+          userManager, firstName, lastName, email, demoPassword, "teacher", logger);
+      if (teacher is null)
+      {
+        continue;
+      }
+
+      context.CourseEnrollments.Add(new CourseEnrollment
+      {
+        CourseId = course.Id,
+        UserId = teacher.Id,
+        Role = CourseRole.Teacher
+      });
+    }
+
+    var students = new (string FirstName, string LastName, CourseModel Course)[]
+    {
+      ("Alice", "Johnson", mathCourse),
+      ("Bob", "Smith", mathCourse),
+      ("Carol", "Davis", mathCourse),
+      ("David", "Wilson", mathCourse),
+      ("Eve", "Brown", mathCourse),
+      ("Frank", "Miller", historyCourse),
+      ("Grace", "Lee", historyCourse),
+      ("Henry", "Moore", historyCourse),
+      ("Ivy", "Taylor", historyCourse),
+      ("Jack", "Anderson", historyCourse)
+    };
+
+    foreach (var (firstName, lastName, course) in students)
+    {
+      var email = $"{firstName}.{lastName}@example.com".ToLowerInvariant();
+      var student = await CreateDemoUserAsync(
+          userManager, firstName, lastName, email, demoPassword, "student", logger);
+      if (student is null)
+      {
+        continue;
+      }
+
+      context.CourseEnrollments.Add(new CourseEnrollment
+      {
+        CourseId = course.Id,
+        UserId = student.Id,
+        Role = CourseRole.Student
+      });
+    }
+
+    await context.SaveChangesAsync();
+
+    logger.LogInformation(
+        "Seeded demo courses: '{Course1}' and '{Course2}', with 2 teachers and 10 students.",
+        mathCourse.Name,
+        historyCourse.Name);
+  }
+
+  private static async Task<ApplicationUser?> CreateDemoUserAsync(
+      UserManager<ApplicationUser> userManager,
+      string firstName,
+      string lastName,
+      string email,
+      string password,
+      string role,
+      ILogger logger)
+  {
+    var existing = await userManager.FindByEmailAsync(email);
+    if (existing is not null)
+    {
+      return existing;
+    }
+
+    var user = new ApplicationUser
+    {
+      UserName = email,
+      Email = email,
+      EmailConfirmed = true,
+      FirstName = firstName,
+      LastName = lastName
+    };
+
+    var createResult = await userManager.CreateAsync(user, password);
+    if (!createResult.Succeeded)
+    {
+      logger.LogWarning(
+          "Could not seed demo user '{Email}': {Errors}",
+          email,
+          string.Join(", ", createResult.Errors.Select(e => e.Description)));
+      return null;
+    }
+
+    var roleResult = await userManager.AddToRoleAsync(user, role);
+    if (!roleResult.Succeeded)
+    {
+      logger.LogWarning(
+          "Could not assign role '{Role}' to demo user '{Email}': {Errors}",
+          role,
+          email,
+          string.Join(", ", roleResult.Errors.Select(e => e.Description)));
+    }
+
+    return user;
   }
 }

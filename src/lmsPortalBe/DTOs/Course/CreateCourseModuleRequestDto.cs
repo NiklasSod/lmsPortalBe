@@ -5,6 +5,9 @@ namespace lmsPortalBe.DTOs.Course;
 public class CreateCourseModuleRequestDto
 {
   [Required]
+  public int CourseId { get; set; }
+  
+  [Required]
   public string Name { get; set; } = string.Empty;
 
   [Required]

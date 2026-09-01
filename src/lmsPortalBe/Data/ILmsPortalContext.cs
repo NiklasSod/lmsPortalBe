@@ -9,6 +9,7 @@ namespace lmsPortalBe.Data
         DbSet<RefreshToken> RefreshTokens { get; set; }
         DbSet<CourseModel> Courses { get; set; }
         DbSet<CourseEnrollment> CourseEnrollments { get; set; }
+        DbSet<CourseModule> CourseModules { get; set; }
 
         DatabaseFacade Database { get; }
 

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using lmsPortalBe.DTOs.Admin;
 using lmsPortalBe.DTOs.Auth;
 using lmsPortalBe.DTOs.User;
@@ -171,5 +172,68 @@ public class UserControllerTests : ApiTestBase, IClassFixture<TestWebApplication
         });
 
     Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetUsers_AsAdmin_ReturnsUsers()
+  {
+    await RegisterAsync("get.users@example.com");
+    var admin = await LoginAsAdminAsync();
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/users", admin.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var users = await response.Content.ReadFromJsonAsync<List<UserDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(users);
+    Assert.Contains(users, u => u.Email == "get.users@example.com");
+  }
+
+  [Fact]
+  public async Task GetUsers_AsTeacher_ReturnsUsers()
+  {
+    var teacher = await CreateTeacherAsync("get.users.teacher@example.com");
+    await RegisterAsync("get.users.student@example.com");
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/users", teacher.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetUsers_AsStudent_ReturnsUsers()
+  {
+    var student = await RegisterAsync("get.users.studentonly@example.com");
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/users", student.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetUser_AsAdmin_ReturnsUser()
+  {
+    await RegisterAsync("get.user@example.com");
+    var userId = await GetUserIdAsync("get.user@example.com");
+    var admin = await LoginAsAdminAsync();
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, $"/api/users/{userId}", admin.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var user = await response.Content.ReadFromJsonAsync<UserDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(user);
+    Assert.Equal("get.user@example.com", user.Email);
+    Assert.Equal("student", user.Role);
+  }
+
+  [Fact]
+  public async Task GetUser_UnknownUser_ReturnsNotFound()
+  {
+    var admin = await LoginAsAdminAsync();
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/nonexistent-id", admin.AccessToken);
+
+    Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
   }
 }

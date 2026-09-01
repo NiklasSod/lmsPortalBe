@@ -265,4 +265,69 @@ public class CourseControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
     Assert.Contains(body.Enrollments, e => e.Role == "Teacher");
     Assert.Contains(body.Enrollments, e => e.Role == "Student");
   }
+
+  [Fact]
+  public async Task DeleteCourse_AsCreator_ReturnsNoContent()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.delete@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Delete,
+        $"/api/courses/{courseId}",
+        teacher.AccessToken);
+
+    Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+    var get = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/courses/{courseId}",
+        teacher.AccessToken);
+    Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
+  }
+
+  [Fact]
+  public async Task DeleteCourse_AsNonCreatorTeacher_ReturnsForbidden()
+  {
+    var creator = await CreateTeacherAsync("course.teacher.delete.creator@example.com");
+    var other = await CreateTeacherAsync("course.teacher.delete.other@example.com");
+
+    var courseId = await CreateCourseAsync(creator.AccessToken, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Delete,
+        $"/api/courses/{courseId}",
+        other.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task DeleteCourse_AsStudent_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.delete.student@example.com");
+    var student = await RegisterAsync("course.student.delete@example.com");
+
+    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Delete,
+        $"/api/courses/{courseId}",
+        student.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task DeleteCourse_UnknownCourse_ReturnsNotFound()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.delete.missing@example.com");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Delete,
+        "/api/courses/999999",
+        teacher.AccessToken);
+
+    Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+  }
 }

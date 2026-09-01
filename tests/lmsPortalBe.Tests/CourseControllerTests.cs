@@ -330,4 +330,72 @@ public class CourseControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
 
     Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
   }
+
+  [Fact]
+  public async Task UpdateCourse_AsTeacher_ReturnsOkAndUpdates()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.update@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/courses/{courseId}",
+        teacher.AccessToken,
+        new UpdateCourseRequestDto { Name = "Algebra II" });
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var body = await response.Content.ReadFromJsonAsync<CourseSummaryDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(body);
+    Assert.Equal("Algebra II", body.Name);
+    Assert.Equal("Test course", body.Description);
+    Assert.Equal(Jan1, body.StartDate);
+    Assert.Equal(Jan31, body.EndDate);
+  }
+
+  [Fact]
+  public async Task UpdateCourse_AsStudent_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.update.student@example.com");
+    var student = await RegisterAsync("course.student.update@example.com");
+
+    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/courses/{courseId}",
+        student.AccessToken,
+        new UpdateCourseRequestDto { Name = "Algebra II" });
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task UpdateCourse_WithEndBeforeStart_ReturnsBadRequest()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.update.dates@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/courses/{courseId}",
+        teacher.AccessToken,
+        new UpdateCourseRequestDto { StartDate = Feb28 });
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task UpdateCourse_UnknownCourse_ReturnsNotFound()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.update.missing@example.com");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        "/api/courses/999999",
+        teacher.AccessToken,
+        new UpdateCourseRequestDto { Name = "Missing" });
+
+    Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+  }
 }

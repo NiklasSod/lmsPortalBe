@@ -4,6 +4,7 @@ using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace lmsPortalBe.Controllers
 {
@@ -57,6 +58,21 @@ namespace lmsPortalBe.Controllers
       }
 
       await transaction.CommitAsync();
+
+      return NoContent();
+    }
+
+    [HttpDelete("courses/{id:int}")]
+    public async Task<IActionResult> DeleteCourse(int id)
+    {
+      var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == id);
+      if (course is null)
+      {
+        return NotFound();
+      }
+
+      _context.Courses.Remove(course);
+      await _context.SaveChangesAsync();
 
       return NoContent();
     }

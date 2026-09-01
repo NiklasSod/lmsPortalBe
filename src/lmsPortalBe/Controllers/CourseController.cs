@@ -122,5 +122,31 @@ namespace lmsPortalBe.Controllers
 
       return NoContent();
     }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = "teacher")]
+    public async Task<IActionResult> DeleteCourse(int id)
+    {
+      var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == id);
+      if (course is null)
+      {
+        return NotFound();
+      }
+
+      var isCreator = await _context.CourseEnrollments
+          .AnyAsync(e => e.CourseId == id
+              && e.UserId == CurrentUserId
+              && e.Role == CourseRole.Teacher);
+
+      if (!isCreator)
+      {
+        return Forbid();
+      }
+
+      _context.Courses.Remove(course);
+      await _context.SaveChangesAsync();
+
+      return NoContent();
+    }
   }
 }

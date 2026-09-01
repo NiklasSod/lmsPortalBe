@@ -162,7 +162,7 @@ namespace lmsPortalBe.Controllers
 
       await _context.SaveChangesAsync();
 
-      return Ok(_mapper.Map<CourseSummaryDto>(module));
+      return Ok(_mapper.Map<CourseModuleSummaryDto>(module));
     }
 
 

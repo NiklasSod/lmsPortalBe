@@ -33,6 +33,22 @@ namespace lmsPortalBe.Controllers
       return Ok(modules.Select(_mapper.Map<CourseModuleSummaryDto>));
     }
 
+    [HttpGet("user")]
+    public async Task<IActionResult> GetUserModules()
+    {
+      var enrolledCourses = await _context.CourseEnrollments
+        .Where(e => e.UserId == CurrentUserId)
+        .Select(e => e.CourseId)
+        .ToListAsync();
+
+      var modules = await _context.CourseModules
+          .Where(c => enrolledCourses.Contains(c.CourseId))
+          .OrderBy(c => c.StartDate)
+          .ToListAsync();
+
+      return Ok(modules.Select(_mapper.Map<CourseModuleSummaryDto>));
+    }
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetModule(int id)
     {
@@ -82,6 +98,17 @@ namespace lmsPortalBe.Controllers
       await _context.SaveChangesAsync();
 
       return CreatedAtAction(nameof(GetModule), new { id = module.Id }, _mapper.Map<CourseModuleSummaryDto>(module));
+    }
+
+    [HttpPost("/api/courses/{courseid: int}")]
+    [Authorize(Roles = "teacher")]
+    public async Task<IActionResult> CreateModuleInCourse(int courseid, CreateCourseModuleRequestDto dto)
+    {
+      if (courseid != dto.CourseId)
+      {
+        return BadRequest("Course id mismatch between request body and route.");
+      }
+      return await CreateModule(dto);
     }
 
     [HttpPatch("{id:int}")]

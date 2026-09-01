@@ -10,6 +10,7 @@ namespace lmsPortalBe.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
         public DbSet<CourseModel> Courses { get; set; } = null!;
         public DbSet<CourseEnrollment> CourseEnrollments { get; set; } = null!;
+        public DbSet<CourseModule> CourseModules { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

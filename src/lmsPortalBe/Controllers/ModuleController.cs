@@ -67,7 +67,7 @@ namespace lmsPortalBe.Controllers
     
 
     [HttpPost]
-    [Authorize(Roles = "teacher")]
+    [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> CreateModule(CreateCourseModuleRequestDto dto)
     {
       if (dto.EndDate <= dto.StartDate)

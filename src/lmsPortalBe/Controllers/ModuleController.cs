@@ -11,7 +11,7 @@ namespace lmsPortalBe.Controllers
 {
   [ApiController]
   [Route("api/[controller]")]
-  [Authorize(Roles = "student,teacher")]
+  [Authorize]
   public class ModulesController(
       ILmsPortalContext context,
       IMapper mapper) : ControllerBase

@@ -264,7 +264,7 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
   [Fact]
   public async Task UpdateModule_WithStartAfterEnd_ReturnsBadRequest()
   {
-    var teacher = await CreateTeacherAsync("course.teacher.update.dates@example.com");
+    var teacher = await CreateTeacherAsync("course.teacher.update.start@example.com");
     var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
     var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
 
@@ -281,7 +281,7 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
   [Fact]
   public async Task UpdateModule_WithEndBeforeStart_ReturnsBadRequest()
   {
-    var teacher = await CreateTeacherAsync("course.teacher.update.dates@example.com");
+    var teacher = await CreateTeacherAsync("course.teacher.update.end@example.com");
     var courseId = await CreateCourseAsync(teacher.AccessToken, Jan15, Jan31);
     var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan15, Jan31);
 

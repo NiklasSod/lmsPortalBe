@@ -150,7 +150,7 @@ namespace lmsPortalBe.Controllers
 
       if (endDate <= startDate)
       {
-        return BadRequest("The course seem to end before it starts, check the start and end dates.");
+        return BadRequest("The module seem to end before it starts, check the start and end dates.");
       }
 
       if (dto.StartDate <= course.StartDate || dto.EndDate >= course.EndDate)

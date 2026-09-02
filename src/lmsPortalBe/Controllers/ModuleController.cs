@@ -110,7 +110,7 @@ namespace lmsPortalBe.Controllers
       return CreatedAtAction(nameof(GetModule), new { id = module.Id }, _mapper.Map<CourseModuleSummaryDto>(module));
     }
 
-    [HttpPost("/api/courses/{courseid:int}/modules")]
+    [HttpPost("/api/courses/{courseId:int}/modules")]
     [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> CreateModuleInCourse(int courseid, CreateCourseModuleRequestDto dto)
     {
@@ -131,6 +131,13 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
       var courseId = dto.CourseId ?? module.CourseId;
+
+      // Moving a module to another course requires teaching both the source
+      // course (to remove it) and the target course (to add it).
+      if (module.CourseId != courseId && !await IsEnrolledAsTeacher(module.CourseId))
+      {
+        return Forbid();
+      }
 
       var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == courseId);
       if (course is null)

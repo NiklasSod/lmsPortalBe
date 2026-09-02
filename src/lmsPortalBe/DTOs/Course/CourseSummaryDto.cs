@@ -13,10 +13,10 @@ public class CourseSummaryDto
   public string Description { get; set; } = string.Empty;
 
   [Required]
-  public DateTime StartDate { get; set; } = DateTime.Now;
+  public DateTime StartDate { get; set; } = DateTime.UtcNow;
 
   [Required]
-  public DateTime EndDate { get; set; } = DateTime.Now;
+  public DateTime EndDate { get; set; } = DateTime.UtcNow;
 
 
 }

@@ -33,6 +33,22 @@ namespace lmsPortalBe.Controllers
       return Ok(courses.Select(_mapper.Map<CourseSummaryDto>));
     }
 
+    [HttpGet("mine")]
+    public async Task<IActionResult> GetUserCourses()
+    {
+      var enrolledCourseIds = await _context.CourseEnrollments
+          .Where(e => e.UserId == CurrentUserId)
+          .Select(e => e.CourseId)
+          .ToListAsync();
+
+      var courses = await _context.Courses
+          .Where(c => enrolledCourseIds.Contains(c.Id))
+          .OrderBy(c => c.StartDate)
+          .ToListAsync();
+
+      return Ok(courses.Select(_mapper.Map<CourseSummaryDto>));
+    }
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetCourse(int id)
     {

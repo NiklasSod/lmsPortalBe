@@ -91,8 +91,6 @@ namespace lmsPortalBe.Controllers
 
       if (dto.StartDate < course.StartDate || dto.EndDate > course.EndDate)
       {
-        Console.WriteLine($"module start: {dto.StartDate}, course start: {course.StartDate}");
-        Console.WriteLine($"module end: {dto.EndDate}, course end: {course.EndDate}");
         return BadRequest("The module extends past the timeframe of the course, check the start and end dates.");
       }
 

@@ -43,7 +43,7 @@ namespace lmsPortalBe.Controllers
 
       var modules = await _context.CourseModules
           .Where(m => enrolledCourses.Contains(m.CourseId))
-          .Where(m => m.EndDate > DateTime.Now && m.StartDate <= DateTime.Now)
+          .Where(m => m.EndDate > DateTime.UtcNow && m.StartDate <= DateTime.UtcNow)
           .OrderBy(m => m.StartDate)
           .ToListAsync();
 
@@ -64,7 +64,7 @@ namespace lmsPortalBe.Controllers
       return Ok(_mapper.Map<CourseModuleSummaryDto>(module));
     }
 
-    
+
 
     [HttpPost]
     [Authorize(Roles = "teacher,admin")]
@@ -153,7 +153,7 @@ namespace lmsPortalBe.Controllers
         return BadRequest("The module seem to end before it starts, check the start and end dates.");
       }
 
-      if (dto.StartDate <= course.StartDate || dto.EndDate >= course.EndDate)
+      if (startDate < course.StartDate || endDate > course.EndDate)
       {
         return BadRequest("The module extends past the timeframe of the course, check the start and end dates.");
       }

@@ -12,7 +12,7 @@ namespace lmsPortalBe.Controllers
   [ApiController]
   [Route("api/[controller]")]
   [Authorize(Roles = "student,teacher")]
-  public class ModuleController(
+  public class ModulesController(
       ILmsPortalContext context,
       IMapper mapper) : ControllerBase
   {
@@ -100,7 +100,7 @@ namespace lmsPortalBe.Controllers
       return CreatedAtAction(nameof(GetModule), new { id = module.Id }, _mapper.Map<CourseModuleSummaryDto>(module));
     }
 
-    [HttpPost("/api/courses/{courseid:int}")]
+    [HttpPost("/api/courses/{courseid:int}/modules")]
     [Authorize(Roles = "teacher")]
     public async Task<IActionResult> CreateModuleInCourse(int courseid, CreateCourseModuleRequestDto dto)
     {

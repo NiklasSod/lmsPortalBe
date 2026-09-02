@@ -100,7 +100,7 @@ namespace lmsPortalBe.Controllers
       return CreatedAtAction(nameof(GetModule), new { id = module.Id }, _mapper.Map<CourseModuleSummaryDto>(module));
     }
 
-    [HttpPost("/api/courses/{courseid: int}")]
+    [HttpPost("/api/courses/{courseid:int}")]
     [Authorize(Roles = "teacher")]
     public async Task<IActionResult> CreateModuleInCourse(int courseid, CreateCourseModuleRequestDto dto)
     {

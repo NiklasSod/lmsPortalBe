@@ -82,7 +82,7 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
   [Fact]
   public async Task CreateModule_AsTeacher_ReturnsCreatedWithId()
   {
-    var teacher = await CreateTeacherAsync("course.teacher@example.com");
+    var teacher = await CreateTeacherAsync("course.teacher.create.module@example.com");
     var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
 
     var response = await SendAuthorizedAsync(
@@ -109,7 +109,7 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
   [Fact]
   public async Task CreateModule_AsStudent_ReturnsForbidden()
   {
-    var teacher = await CreateTeacherAsync("course.teacher@example.com");
+    var teacher = await CreateTeacherAsync("course.teacher.not.forbidden@example.com");
     var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
 
     var student = await RegisterAsync("course.student.forbidden@example.com");
@@ -133,7 +133,7 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
   [Fact]
   public async Task CreateModule_WithEndBeforeStart_ReturnsBadRequest()
   {
-    var teacher = await CreateTeacherAsync("course.teacher@example.com");
+    var teacher = await CreateTeacherAsync("course.teacher.wrong.dates@example.com");
     var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
 
     var response = await SendAuthorizedAsync(
@@ -184,7 +184,7 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
 
     var response = await SendAuthorizedAsync(
         HttpMethod.Delete,
-        $"/api/module/{moduleId}",
+        $"/api/modules/{moduleId}",
         other.AccessToken);
 
     Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -262,7 +262,7 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
   }
 
   [Fact]
-  public async Task UpdateModule_WithEndBeforeStart_ReturnsBadRequest()
+  public async Task UpdateModule_WithStartAfterEnd_ReturnsBadRequest()
   {
     var teacher = await CreateTeacherAsync("course.teacher.update.dates@example.com");
     var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
@@ -272,7 +272,7 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
         HttpMethod.Patch,
         $"/api/modules/{moduleId}",
         teacher.AccessToken,
-        new UpdateCourseRequestDto { StartDate = Feb28 });
+        new UpdateCourseModuleRequestDto { StartDate = Feb28 });
 
     Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
   }

@@ -277,6 +277,23 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
     Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
   }
 
+
+  [Fact]
+  public async Task UpdateModule_WithEndBeforeStart_ReturnsBadRequest()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.update.dates@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan15, Jan31);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan15, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/modules/{moduleId}",
+        teacher.AccessToken,
+        new UpdateCourseModuleRequestDto { EndDate = Jan1 });
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
+
   [Fact]
   public async Task UpdateModule_UnknownCourse_ReturnsNotFound()
   {

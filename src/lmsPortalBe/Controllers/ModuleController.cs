@@ -82,6 +82,13 @@ namespace lmsPortalBe.Controllers
         return NotFound("Course not found.");
       }
 
+      var isEnrolledAsTeacher = await IsEnrolledAsTeacher(course.Id);
+
+      if (!isEnrolledAsTeacher)
+      {
+        return Forbid();
+      }
+
       if (dto.StartDate < course.StartDate || dto.EndDate > course.EndDate)
       {
         Console.WriteLine($"module start: {dto.StartDate}, course start: {course.StartDate}");
@@ -131,6 +138,13 @@ namespace lmsPortalBe.Controllers
       if (course is null)
       {
         return NotFound("Course not found.");
+      }
+
+      var isEnrolledAsTeacher = await IsEnrolledAsTeacher(course.Id);
+
+      if (!isEnrolledAsTeacher)
+      {
+        return Forbid();
       }
 
       var startDate = dto.StartDate ?? module.StartDate;
@@ -187,12 +201,9 @@ namespace lmsPortalBe.Controllers
         return NotFound("Course not found.");
       }
 
-      var isCreator = await _context.CourseEnrollments
-          .AnyAsync(e => e.CourseId == course.Id
-              && e.UserId == CurrentUserId
-              && e.Role == CourseRole.Teacher);
+      var isEnrolledAsTeacher = await IsEnrolledAsTeacher(course.Id);
 
-      if (!isCreator)
+      if (!isEnrolledAsTeacher)
       {
         return Forbid();
       }
@@ -202,5 +213,13 @@ namespace lmsPortalBe.Controllers
 
       return NoContent();
     }
+    private async Task<bool> IsEnrolledAsTeacher(int courseId)
+    {
+      return await _context.CourseEnrollments
+          .AnyAsync(e => e.CourseId == courseId
+              && e.UserId == CurrentUserId
+              && e.Role == CourseRole.Teacher);
+    }
   }
+
 }

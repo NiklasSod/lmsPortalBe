@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace lmsPortalBe.Migrations
 {
     /// <inheritdoc />
-    public partial class modules : Migration
+    public partial class CreateModules : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -21,8 +21,7 @@ namespace lmsPortalBe.Migrations
                     Description = table.Column<string>(type: "TEXT", nullable: false),
                     StartDate = table.Column<DateTime>(type: "TEXT", nullable: false),
                     EndDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CourseId = table.Column<int>(type: "INTEGER", nullable: false),
-                    CourseModelId = table.Column<int>(type: "INTEGER", nullable: true)
+                    CourseId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -33,22 +32,12 @@ namespace lmsPortalBe.Migrations
                         principalTable: "lmsCourse",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_lmsCourseModule_lmsCourse_CourseModelId",
-                        column: x => x.CourseModelId,
-                        principalTable: "lmsCourse",
-                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateIndex(
                 name: "IX_lmsCourseModule_CourseId",
                 table: "lmsCourseModule",
                 column: "CourseId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_lmsCourseModule_CourseModelId",
-                table: "lmsCourseModule",
-                column: "CourseModelId");
         }
 
         /// <inheritdoc />

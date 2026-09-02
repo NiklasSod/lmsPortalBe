@@ -262,6 +262,25 @@ public class ModuleControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
   }
 
   [Fact]
+  public async Task UpdateModule_MoveToOtherCourse_ByNonOwnerOfSource_ReturnsForbidden()
+  {
+    var owner = await CreateTeacherAsync("course.teacher.move.owner@example.com");
+    var otherTeacher = await CreateTeacherAsync("course.teacher.move.other@example.com");
+
+    var sourceCourseId = await CreateCourseAsync(owner.AccessToken, Jan1, Jan31);
+    var targetCourseId = await CreateCourseAsync(otherTeacher.AccessToken, Jan1, Jan31);
+    var moduleId = await CreateModuleAsync(owner.AccessToken, sourceCourseId, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/modules/{moduleId}",
+        otherTeacher.AccessToken,
+        new UpdateCourseModuleRequestDto { CourseId = targetCourseId, Name = "Stolen module" });
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
   public async Task UpdateModule_WithStartAfterEnd_ReturnsBadRequest()
   {
     var teacher = await CreateTeacherAsync("course.teacher.update.start@example.com");

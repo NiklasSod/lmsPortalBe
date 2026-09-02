@@ -267,6 +267,26 @@ public class CourseControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
   }
 
   [Fact]
+  public async Task GetCourse_AsNonMemberStudent_HidesRoster()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.detail.hidden@example.com");
+    var student = await RegisterAsync("course.student.detail.hidden@example.com");
+
+    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/courses/{courseId}",
+        student.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var body = await response.Content.ReadFromJsonAsync<CourseDetailDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(body);
+    Assert.Empty(body.Enrollments);
+  }
+
+  [Fact]
   public async Task DeleteCourse_AsCreator_ReturnsNoContent()
   {
     var teacher = await CreateTeacherAsync("course.teacher.delete@example.com");
@@ -366,6 +386,23 @@ public class CourseControllerTests : ApiTestBase, IClassFixture<TestWebApplicati
         $"/api/courses/{courseId}",
         student.AccessToken,
         new UpdateCourseRequestDto { Name = "Algebra II" });
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task UpdateCourse_AsNonOwnerTeacher_ReturnsForbidden()
+  {
+    var owner = await CreateTeacherAsync("course.teacher.update.owner@example.com");
+    var otherTeacher = await CreateTeacherAsync("course.teacher.update.other@example.com");
+
+    var courseId = await CreateCourseAsync(owner.AccessToken, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/courses/{courseId}",
+        otherTeacher.AccessToken,
+        new UpdateCourseRequestDto { Name = "Hijacked" });
 
     Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
   }

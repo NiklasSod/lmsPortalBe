@@ -33,6 +33,22 @@ namespace lmsPortalBe.Controllers
       return Ok(modules.Select(_mapper.Map<CourseModuleSummaryDto>));
     }
 
+    [HttpGet("mine")]
+    public async Task<IActionResult> GetUserModules()
+    {
+      var enrolledCourses = await _context.CourseEnrollments
+        .Where(e => e.UserId == CurrentUserId)
+        .Select(e => e.CourseId)
+        .ToListAsync();
+
+      var modules = await _context.CourseModules
+          .Where(m => enrolledCourses.Contains(m.CourseId))
+          .OrderBy(m => m.StartDate)
+          .ToListAsync();
+
+      return Ok(modules.Select(_mapper.Map<CourseModuleSummaryDto>));
+    }
+
     [HttpGet("current")]
     public async Task<IActionResult> GetUserCurrentModules()
     {

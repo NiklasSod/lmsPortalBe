@@ -46,7 +46,20 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      return Ok(_mapper.Map<CourseDetailDto>(course));
+      var dto = _mapper.Map<CourseDetailDto>(course);
+
+      // Only members (or admins) may see the roster; everyone else gets the
+      // course metadata without the enrolled students.
+      var canViewRoster = User.IsInRole("admin")
+          || await _context.CourseEnrollments
+              .AnyAsync(e => e.CourseId == id && e.UserId == CurrentUserId);
+
+      if (!canViewRoster)
+      {
+        dto.Enrollments.Clear();
+      }
+
+      return Ok(dto);
     }
 
     [HttpPost]
@@ -87,6 +100,16 @@ namespace lmsPortalBe.Controllers
       if (course is null)
       {
         return NotFound();
+      }
+
+      var isTeacherOfCourse = await _context.CourseEnrollments
+          .AnyAsync(e => e.CourseId == id
+              && e.UserId == CurrentUserId
+              && e.Role == CourseRole.Teacher);
+
+      if (!User.IsInRole("admin") && !isTeacherOfCourse)
+      {
+        return Forbid();
       }
 
       var startDate = dto.StartDate ?? course.StartDate;

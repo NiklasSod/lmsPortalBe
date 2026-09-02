@@ -33,8 +33,8 @@ namespace lmsPortalBe.Controllers
       return Ok(modules.Select(_mapper.Map<CourseModuleSummaryDto>));
     }
 
-    [HttpGet("user")]
-    public async Task<IActionResult> GetUserModules()
+    [HttpGet("current")]
+    public async Task<IActionResult> GetUserCurrentModules()
     {
       var enrolledCourses = await _context.CourseEnrollments
         .Where(e => e.UserId == CurrentUserId)
@@ -42,8 +42,9 @@ namespace lmsPortalBe.Controllers
         .ToListAsync();
 
       var modules = await _context.CourseModules
-          .Where(c => enrolledCourses.Contains(c.CourseId))
-          .OrderBy(c => c.StartDate)
+          .Where(m => enrolledCourses.Contains(m.CourseId))
+          .Where(m => m.EndDate > DateTime.Now && m.StartDate <= DateTime.Now)
+          .OrderBy(m => m.StartDate)
           .ToListAsync();
 
       return Ok(modules.Select(_mapper.Map<CourseModuleSummaryDto>));
@@ -63,6 +64,8 @@ namespace lmsPortalBe.Controllers
       return Ok(_mapper.Map<CourseModuleSummaryDto>(module));
     }
 
+    
+
     [HttpPost]
     [Authorize(Roles = "teacher")]
     public async Task<IActionResult> CreateModule(CreateCourseModuleRequestDto dto)
@@ -79,8 +82,10 @@ namespace lmsPortalBe.Controllers
         return NotFound("Course not found.");
       }
 
-      if (dto.StartDate <= course.StartDate || dto.EndDate >= course.EndDate)
+      if (dto.StartDate < course.StartDate || dto.EndDate > course.EndDate)
       {
+        Console.WriteLine($"module start: {dto.StartDate}, course start: {course.StartDate}");
+        Console.WriteLine($"module end: {dto.EndDate}, course end: {course.EndDate}");
         return BadRequest("The module extends past the timeframe of the course, check the start and end dates.");
       }
 

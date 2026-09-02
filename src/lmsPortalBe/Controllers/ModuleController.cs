@@ -113,7 +113,7 @@ namespace lmsPortalBe.Controllers
     }
 
     [HttpPost("/api/courses/{courseid:int}/modules")]
-    [Authorize(Roles = "teacher")]
+    [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> CreateModuleInCourse(int courseid, CreateCourseModuleRequestDto dto)
     {
       if (courseid != dto.CourseId)
@@ -124,7 +124,7 @@ namespace lmsPortalBe.Controllers
     }
 
     [HttpPatch("{id:int}")]
-    [Authorize(Roles = "teacher")]
+    [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> UpdateModule(int id, UpdateCourseModuleRequestDto dto)
     {
       var module = await _context.CourseModules.FirstOrDefaultAsync(m => m.Id == id);
@@ -186,7 +186,7 @@ namespace lmsPortalBe.Controllers
 
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "teacher")]
+    [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> DeleteModule(int id)
     {
       var module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == id);

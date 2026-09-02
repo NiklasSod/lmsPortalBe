@@ -11,8 +11,8 @@ using lmsPortalBe.Data;
 namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
-    [Migration("20260901115729_modules")]
-    partial class modules
+    [Migration("20260902205204_CreateModules")]
+    partial class CreateModules
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -286,9 +286,6 @@ namespace lmsPortalBe.Migrations
                     b.Property<int>("CourseId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("CourseModelId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -306,8 +303,6 @@ namespace lmsPortalBe.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CourseId");
-
-                    b.HasIndex("CourseModelId");
 
                     b.ToTable("lmsCourseModule", (string)null);
                 });
@@ -418,14 +413,10 @@ namespace lmsPortalBe.Migrations
             modelBuilder.Entity("lmsPortalBe.Models.CourseModule", b =>
                 {
                     b.HasOne("lmsPortalBe.Models.CourseModel", "Course")
-                        .WithMany()
+                        .WithMany("Modules")
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("lmsPortalBe.Models.CourseModel", null)
-                        .WithMany("Modules")
-                        .HasForeignKey("CourseModelId");
 
                     b.Navigation("Course");
                 });

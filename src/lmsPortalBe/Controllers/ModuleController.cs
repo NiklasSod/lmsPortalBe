@@ -128,9 +128,9 @@ namespace lmsPortalBe.Controllers
 
     [HttpPost("/api/courses/{courseId:int}/modules")]
     [Authorize(Roles = "teacher,admin")]
-    public async Task<IActionResult> CreateModuleInCourse(int courseid, CreateCourseModuleRequestDto dto)
+    public async Task<IActionResult> CreateModuleInCourse(int courseId, CreateCourseModuleRequestDto dto)
     {
-      if (courseid != dto.CourseId)
+      if (courseId != dto.CourseId)
       {
         return BadRequest("Course id mismatch between request body and route.");
       }

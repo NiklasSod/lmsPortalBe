@@ -51,10 +51,23 @@ namespace lmsPortalBe.Controllers
       return Ok(activities.Select(_mapper.Map<ActivityDto>));
     }
 
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetActivity(int id)
+    {
+      var activity = await _context.Activities
+          .FirstOrDefaultAsync(c => c.Id == id);
+      if (activity is null)
+      {
+        return NotFound();
+      }
+
+      return Ok(_mapper.Map<ActivityDto>(activity));
+    }
+
     [HttpGet("/api/modules/{id:int}/activities")]
     public async Task<IActionResult> GetModuleActivities(int id)
     {
-      var module = await _context.Activities
+      var module = await _context.CourseModules
           .FirstOrDefaultAsync(c => c.Id == id);
       if (module is null)
       {
@@ -69,34 +82,17 @@ namespace lmsPortalBe.Controllers
       return Ok(activities.Select(_mapper.Map<ActivityDto>));
     }
 
-    [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetActivity(int id)
-    {
-      var activity = await _context.Activities
-          .FirstOrDefaultAsync(c => c.Id == id);
-      if (activity is null)
-      {
-        return NotFound();
-      }
-
-      return Ok(_mapper.Map<ActivityDto>(activity));
-    }
-
-    [HttpPost("api/modules/{id:int}/activities")]
+    [HttpPost("api/activities")]
     [Authorize(Roles = "teacher,admin")]
-    public async Task<IActionResult> CreateCourse(int id, CreateActivityRequestDto dto)
+    public async Task<IActionResult> CreateActivity(CreateActivityRequestDto dto)
     {
-      if (dto.ModuleId != id)
-      {
-        return BadRequest("Module Id in request body does not match id in route.");
-      }
 
       if (dto.EndDate <= dto.StartDate)
       {
         return BadRequest("The activity seem to end before it starts, check the start and end dates.");
       }
 
-      var module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == id);
+      var module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == dto.ModuleId);
       if (module is null)
       {
         return NotFound("Cannot find module to add activity to.");
@@ -129,6 +125,18 @@ namespace lmsPortalBe.Controllers
       await _context.SaveChangesAsync();
 
       return CreatedAtAction(nameof(GetActivity), new { id = activity.Id }, _mapper.Map<ActivityDto>(activity));
+    }
+
+
+    [HttpPost("api/modules/{moduleId:int}/activities")]
+    [Authorize(Roles = "teacher,admin")]
+    public async Task<IActionResult> CreateActivityInModule(int moduleId, CreateActivityRequestDto dto)
+    {
+      if (dto.ModuleId != moduleId)
+      {
+        return BadRequest("Module Id in request body does not match id in route.");
+      }
+      return await CreateActivity(dto);
     }
 
     [HttpPatch("{id:int}")]

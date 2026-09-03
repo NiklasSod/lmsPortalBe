@@ -7,7 +7,7 @@ namespace lmsPortalBe.Models
         public int Id { get; init; } = 0;
         public int ModuleId { get; set; }
         public CourseModule Module { get; set; } = null!;
-        public int ActivityTypeId { get; set; } = 0;
+        public ActivityType ActivityType { get; set; } = ActivityType.Lecture;
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public DateTime StartDate { get; set; } = DateTime.UtcNow;

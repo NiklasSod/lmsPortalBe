@@ -55,6 +55,7 @@ namespace lmsPortalBe.Controllers
       var course = await _context.Courses
           .Include(c => c.Enrollments)
               .ThenInclude(e => e.User)
+          .Include(c => c.Modules)
           .FirstOrDefaultAsync(c => c.Id == id);
 
       if (course is null)

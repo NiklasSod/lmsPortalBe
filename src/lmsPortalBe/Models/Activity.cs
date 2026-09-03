@@ -1,0 +1,16 @@
+using System.Reflection;
+
+namespace lmsPortalBe.Models
+{
+    public class Activity
+    {
+        public int Id { get; init; } = 0;
+        public int ModuleId { get; set; }
+        public Module Module { get; set; } = null!;
+        public int ActivityTypeId { get; set; } = 0;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public DateTime StartDate { get; set; } = DateTime.UtcNow;
+        public DateTime EndDate { get; set; } = DateTime.UtcNow;
+    }
+}

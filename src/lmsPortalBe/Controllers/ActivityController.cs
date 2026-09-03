@@ -82,7 +82,7 @@ namespace lmsPortalBe.Controllers
       return Ok(activities.Select(_mapper.Map<ActivityDto>));
     }
 
-    [HttpPost("api/activities")]
+    [HttpPost]
     [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> CreateActivity(CreateActivityRequestDto dto)
     {
@@ -128,7 +128,7 @@ namespace lmsPortalBe.Controllers
     }
 
 
-    [HttpPost("api/modules/{moduleId:int}/activities")]
+    [HttpPost("/api/modules/{moduleId:int}/activities")]
     [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> CreateActivityInModule(int moduleId, CreateActivityRequestDto dto)
     {
@@ -206,7 +206,9 @@ namespace lmsPortalBe.Controllers
     [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> DeleteActivity(int id)
     {
-      var activity = await _context.Activities.FirstOrDefaultAsync(c => c.Id == id);
+      var activity = await _context.Activities
+          .Include(c => c.Module)
+          .FirstOrDefaultAsync(c => c.Id == id);
       if (activity is null)
       {
         return NotFound();

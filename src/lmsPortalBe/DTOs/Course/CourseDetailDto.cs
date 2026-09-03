@@ -8,4 +8,5 @@ public class CourseDetailDto
   public DateTime StartDate { get; set; }
   public DateTime EndDate { get; set; }
   public List<CourseEnrollmentDto> Enrollments { get; set; } = [];
+  public List<CourseModuleSummaryDto> Modules { get; set; } = [];
 }

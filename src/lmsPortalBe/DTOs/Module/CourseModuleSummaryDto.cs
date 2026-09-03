@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace lmsPortalBe.DTOs.Course;
 
-public class CourseSummaryDto
+public class CourseModuleSummaryDto
 {
   public int Id { get; set; }
 

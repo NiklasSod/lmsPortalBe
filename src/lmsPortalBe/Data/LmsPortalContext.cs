@@ -10,6 +10,7 @@ namespace lmsPortalBe.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
         public DbSet<CourseModel> Courses { get; set; } = null!;
         public DbSet<CourseEnrollment> CourseEnrollments { get; set; } = null!;
+        public DbSet<CourseModule> CourseModules { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -46,6 +47,11 @@ namespace lmsPortalBe.Data
                     .WithOne(e => e.Course)
                     .HasForeignKey(e => e.CourseId)
                     .OnDelete(DeleteBehavior.Cascade);
+                
+                entity.HasMany(e => e.Modules)
+                    .WithOne(e => e.Course)
+                    .HasForeignKey(e => e.CourseId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<CourseEnrollment>(entity =>
@@ -58,6 +64,11 @@ namespace lmsPortalBe.Data
                     .WithMany(u => u.Enrollments)
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<CourseModule>(entity =>
+            {
+                entity.ToTable("lmsCourseModule");
             });
         }
     }

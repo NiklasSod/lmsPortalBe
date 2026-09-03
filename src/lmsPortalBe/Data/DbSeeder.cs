@@ -131,14 +131,42 @@ public static class DbSeeder
       EndDate = new DateTime(2026, 12, 18, 17, 0, 0)
     };
 
+    var csCourse = new CourseModel
+    {
+      Name = "Computer Science 101",
+      Description = "Introduction to programming and computation.",
+      StartDate = new DateTime(2026, 8, 31, 9, 0, 0),
+      EndDate = new DateTime(2026, 12, 11, 17, 0, 0)
+    };
+
     context.Courses.Add(mathCourse);
     context.Courses.Add(historyCourse);
+    context.Courses.Add(csCourse);
+    await context.SaveChangesAsync();
+
+    var modules = new (string Name, string Description, DateTime StartDate, DateTime EndDate, CourseModel Course)[]
+    {
+      ("Algebra 101", "Learn the basics of algebra", new DateTime(2026, 9, 14, 9, 0, 0), new DateTime(2026, 10, 18, 17, 0, 0), mathCourse),
+      ("Geometry 101", "Learn the basics of geometry", new DateTime(2026, 10, 19, 17, 0, 0), new DateTime(2026, 12, 18, 17, 0, 0), mathCourse),
+      ("Ancient egypt", "They had pyramids", new DateTime(2026, 9, 14, 9, 0, 0), new DateTime(2026, 10, 18, 17, 0, 0), historyCourse),
+      ("Ancient maya", "Also had pyramids", new DateTime(2026, 10, 19, 17, 0, 0), new DateTime(2026, 12, 18, 17, 0, 0), historyCourse),
+      ("Programming Basics", "Write your first program", new DateTime(2026, 8, 31, 9, 0, 0), new DateTime(2026, 9, 30, 17, 0, 0), csCourse),
+      ("Data Structures", "Lists, stacks, and queues", new DateTime(2026, 10, 1, 9, 0, 0), new DateTime(2026, 10, 31, 17, 0, 0), csCourse),
+    };
+
+    foreach (var (name, description, start, end, course) in modules)
+    {
+      var module = new CourseModule { Name = name, Description = description, StartDate = start, EndDate = end, Course = course, CourseId = course.Id };
+      context.CourseModules.Add(module);
+    }
+
     await context.SaveChangesAsync();
 
     var teachers = new (string FirstName, string LastName, CourseModel Course)[]
     {
       ("Alan", "Turing", mathCourse),
-      ("Marie", "Curie", historyCourse)
+      ("Marie", "Curie", historyCourse),
+      ("Ada", "Lovelace", csCourse)
     };
 
     foreach (var (firstName, lastName, course) in teachers)
@@ -170,7 +198,14 @@ public static class DbSeeder
       ("Grace", "Lee", historyCourse),
       ("Henry", "Moore", historyCourse),
       ("Ivy", "Taylor", historyCourse),
-      ("Jack", "Anderson", historyCourse)
+      ("Jack", "Anderson", historyCourse),
+      ("Liam", "Carter", csCourse),
+      ("Noah", "Brooks", csCourse),
+      ("Olivia", "Foster", csCourse),
+      ("Emma", "Reed", csCourse),
+      ("Sophia", "Hayes", csCourse),
+      ("Mia", "Bennett", csCourse),
+      ("Lucas", "Grant", csCourse)
     };
 
     foreach (var (firstName, lastName, course) in students)
@@ -194,9 +229,10 @@ public static class DbSeeder
     await context.SaveChangesAsync();
 
     logger.LogInformation(
-        "Seeded demo courses: '{Course1}' and '{Course2}', with 2 teachers and 10 students.",
+        "Seeded demo courses: '{Course1}', '{Course2}' and '{Course3}', with 3 teachers and 17 students.",
         mathCourse.Name,
-        historyCourse.Name);
+        historyCourse.Name,
+        csCourse.Name);
   }
 
   private static async Task<ApplicationUser?> CreateDemoUserAsync(

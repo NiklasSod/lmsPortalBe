@@ -28,17 +28,15 @@ namespace lmsPortalBe.Controllers
             && e.UserId == CurrentUserId
             && e.Role == CourseRole.Teacher);
 
+    private async Task<bool> IsEnrolledAsync(int courseId) =>
+        await _context.CourseEnrollments.AnyAsync(e => e.CourseId == courseId
+            && e.UserId == CurrentUserId);
+
     [HttpGet]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> GetAllActivities()
     {
-      var enrolledCourses = await _context.CourseEnrollments
-        .Where(e => e.UserId == CurrentUserId)
-        .Select(e => e.CourseId)
-        .ToListAsync();
-
-      var activities = await _context.CourseModules
-          .Where(m => enrolledCourses.Contains(m.CourseId))
-          .SelectMany(m => m.Activities)
+      var activities = await _context.Activities
           .OrderBy(a => a.StartDate)
           .ToListAsync();
 
@@ -67,10 +65,16 @@ namespace lmsPortalBe.Controllers
     public async Task<IActionResult> GetActivity(int id)
     {
       var activity = await _context.Activities
+          .Include(a => a.Module)
           .FirstOrDefaultAsync(c => c.Id == id);
       if (activity is null)
       {
         return NotFound();
+      }
+
+      if (!User.IsInRole("admin") && !await IsEnrolledAsync(activity.Module.CourseId))
+      {
+        return Forbid();
       }
 
       return Ok(_mapper.Map<ActivityDto>(activity));
@@ -84,6 +88,11 @@ namespace lmsPortalBe.Controllers
       if (module is null)
       {
         return NotFound();
+      }
+
+      if (!User.IsInRole("admin") && !await IsEnrolledAsync(module.CourseId))
+      {
+        return Forbid();
       }
 
       var activities = await _context.Activities

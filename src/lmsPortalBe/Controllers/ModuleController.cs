@@ -26,9 +26,26 @@ namespace lmsPortalBe.Controllers
     [HttpGet]
     public async Task<IActionResult> GetAllModules()
     {
-      var modules = await _context.CourseModules
-          .OrderBy(c => c.StartDate)
-          .ToListAsync();
+      List<CourseModule> modules;
+
+      if (User.IsInRole("admin"))
+      {
+        modules = await _context.CourseModules
+            .OrderBy(c => c.StartDate)
+            .ToListAsync();
+      }
+      else
+      {
+        var enrolledCourses = await _context.CourseEnrollments
+            .Where(e => e.UserId == CurrentUserId)
+            .Select(e => e.CourseId)
+            .ToListAsync();
+
+        modules = await _context.CourseModules
+            .Where(m => enrolledCourses.Contains(m.CourseId))
+            .OrderBy(c => c.StartDate)
+            .ToListAsync();
+      }
 
       return Ok(modules.Select(_mapper.Map<CourseModuleSummaryDto>));
     }

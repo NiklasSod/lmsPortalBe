@@ -184,7 +184,7 @@ public class ActivitiesControllerTests : ApiTestBase, IClassFixture<TestWebAppli
   }
 
   [Fact]
-  public async Task GetAllActivities_ReturnsOnlyEnrolledCourses()
+  public async Task GetAllActivities_AsAdmin_ReturnsAllActivities()
   {
     var teacherA = await CreateTeacherAsync("course.teacher.list.a@example.com");
     var teacherB = await CreateTeacherAsync("course.teacher.list.b@example.com");
@@ -197,17 +197,35 @@ public class ActivitiesControllerTests : ApiTestBase, IClassFixture<TestWebAppli
     var moduleBId = await CreateModuleAsync(teacherB.AccessToken, courseBId, Jan1, Jan31);
     var activityBId = await CreateActivityAsync(teacherB.AccessToken, moduleBId, Jan1, Jan31);
 
+    var admin = await LoginAsync("admin@example.com", "AdminPass1");
+
     var response = await SendAuthorizedAsync(
         HttpMethod.Get,
         "/api/activities",
-        teacherA.AccessToken);
+        admin.AccessToken);
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
     var activities = await response.Content.ReadFromJsonAsync<List<ActivityDto>>(TestContext.Current.CancellationToken);
     Assert.NotNull(activities);
     Assert.Contains(activities, a => a.Id == activityAId);
-    Assert.DoesNotContain(activities, a => a.Id == activityBId);
+    Assert.Contains(activities, a => a.Id == activityBId);
+  }
+
+  [Fact]
+  public async Task GetAllActivities_AsTeacher_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.list.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
+    await CreateActivityAsync(teacher.AccessToken, moduleId, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        "/api/activities",
+        teacher.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
   }
 
   [Fact]

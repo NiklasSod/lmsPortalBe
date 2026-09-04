@@ -12,7 +12,7 @@ namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
     [Migration("20260903113506_activities-update")]
-    partial class activitiesupdate
+    partial class ActivitiesUpdate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

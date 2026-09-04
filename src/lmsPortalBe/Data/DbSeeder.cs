@@ -160,9 +160,9 @@ public static class DbSeeder
     {
       var module = new CourseModule { Name = name, Description = description, StartDate = start, EndDate = end, Course = course, CourseId = course.Id };
       var firstActivity = new Activity {Name = "First Activity", Description = "First", StartDate = start, EndDate = start.AddHours(2), ActivityType= ActivityType.Lecture};
-      var secondActitity = new Activity {Name = "Second Activity", Description = "Second", StartDate = start.AddDays(1), EndDate = start.AddDays(1).AddHours(2), ActivityType= ActivityType.Mentorship};
+      var secondActivity = new Activity {Name = "Second Activity", Description = "Second", StartDate = start.AddDays(1), EndDate = start.AddDays(1).AddHours(2), ActivityType= ActivityType.Mentorship};
       module.Activities.Add(firstActivity);
-      module.Activities.Add(secondActitity);
+      module.Activities.Add(secondActivity);
       context.CourseModules.Add(module);
     }
 

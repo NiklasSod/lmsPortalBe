@@ -115,6 +115,7 @@ public static class DbSeeder
       return;
     }
 
+    // COURSES
     var mathCourse = new CourseModel
     {
       Name = "Mathematics 101",
@@ -144,6 +145,7 @@ public static class DbSeeder
     context.Courses.Add(csCourse);
     await context.SaveChangesAsync();
 
+    // MODULES
     var modules = new (string Name, string Description, DateTime StartDate, DateTime EndDate, CourseModel Course)[]
     {
       ("Algebra 101", "Learn the basics of algebra", new DateTime(2026, 9, 14, 9, 0, 0), new DateTime(2026, 10, 18, 17, 0, 0), mathCourse),
@@ -157,11 +159,17 @@ public static class DbSeeder
     foreach (var (name, description, start, end, course) in modules)
     {
       var module = new CourseModule { Name = name, Description = description, StartDate = start, EndDate = end, Course = course, CourseId = course.Id };
+      var firstActivity = new Activity {Name = "First Activity", Description = "First", StartDate = start, EndDate = start.AddHours(2), ActivityType= ActivityType.Lecture};
+      var secondActitity = new Activity {Name = "Second Activity", Description = "Second", StartDate = start.AddDays(1), EndDate = start.AddDays(1).AddHours(2), ActivityType= ActivityType.Mentorship};
+      module.Activities.Add(firstActivity);
+      module.Activities.Add(secondActitity);
       context.CourseModules.Add(module);
     }
 
     await context.SaveChangesAsync();
+    
 
+    // TEACHERS
     var teachers = new (string FirstName, string LastName, CourseModel Course)[]
     {
       ("Alan", "Turing", mathCourse),
@@ -187,6 +195,7 @@ public static class DbSeeder
       });
     }
 
+    // STUDENTS
     var students = new (string FirstName, string LastName, CourseModel Course)[]
     {
       ("Alice", "Johnson", mathCourse),

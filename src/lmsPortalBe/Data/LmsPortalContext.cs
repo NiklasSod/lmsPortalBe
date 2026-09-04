@@ -11,6 +11,7 @@ namespace lmsPortalBe.Data
         public DbSet<CourseModel> Courses { get; set; } = null!;
         public DbSet<CourseEnrollment> CourseEnrollments { get; set; } = null!;
         public DbSet<CourseModule> CourseModules { get; set; } = null!;
+        public DbSet<Activity> Activities { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -69,6 +70,16 @@ namespace lmsPortalBe.Data
             builder.Entity<CourseModule>(entity =>
             {
                 entity.ToTable("lmsCourseModule");
+                
+                entity.HasMany(e => e.Activities)
+                    .WithOne(a => a.Module)
+                    .HasForeignKey(e => e.ModuleId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<Activity>(entity =>
+            {
+                entity.ToTable("lmsActivity");
             });
         }
     }

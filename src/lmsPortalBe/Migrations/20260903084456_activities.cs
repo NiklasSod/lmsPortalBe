@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace lmsPortalBe.Migrations
 {
     /// <inheritdoc />
-    public partial class activities : Migration
+    public partial class Activities : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

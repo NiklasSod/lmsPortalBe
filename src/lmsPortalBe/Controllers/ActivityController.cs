@@ -143,7 +143,7 @@ namespace lmsPortalBe.Controllers
     [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> UpdateActivity(int id, UpdateActivityRequestDto dto)
     {
-      var activity = await _context.Activities.FirstOrDefaultAsync(c => c.Id == id);
+      var activity = await _context.Activities.FirstOrDefaultAsync(a => a.Id == id);
       if (activity is null)
       {
         return NotFound();
@@ -154,16 +154,11 @@ namespace lmsPortalBe.Controllers
         return BadRequest("Activity can't end before it starts, check the start and end dates.");
       }
 
-      var module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == dto.ModuleId);
+      var moduleId = dto.ModuleId ?? activity.ModuleId;
+      var module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == activity.ModuleId);
       if (module is null)
       {
-        return NotFound("Cannot find module to add activity to.");
-      }
-
-      if (dto.EndDate < module.StartDate || dto.EndDate > module.EndDate ||
-          dto.StartDate < module.StartDate || dto.StartDate > module.EndDate)
-      {
-        return BadRequest("Activity can't extend outside the module's timeframe, check the start and end dates.");
+        return NotFound("Cannot find parent module.");
       }
 
       var isTeacherOfCourse = await _context.CourseEnrollments
@@ -174,6 +169,31 @@ namespace lmsPortalBe.Controllers
       if (!User.IsInRole("admin") && !isTeacherOfCourse)
       {
         return Forbid();
+      }
+
+      if (dto.ModuleId is not null)
+      {
+        module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == activity.ModuleId);
+        if (module is null)
+        {
+          return NotFound("Cannot find destination module.");
+        }
+
+        var isTeacherOfDestinationCourse = await _context.CourseEnrollments
+          .AnyAsync(e => e.CourseId == module.CourseId
+              && e.UserId == CurrentUserId
+              && e.Role == CourseRole.Teacher);
+
+        if (!User.IsInRole("admin") && !isTeacherOfDestinationCourse)
+        {
+          return Forbid();
+        }
+      }
+
+      if (dto.EndDate < module.StartDate || dto.EndDate > module.EndDate ||
+          dto.StartDate < module.StartDate || dto.StartDate > module.EndDate)
+      {
+        return BadRequest("Activity can't extend outside the module's timeframe, check the start and end dates.");
       }
 
       var startDate = dto.StartDate ?? activity.StartDate;
@@ -214,12 +234,12 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      var isCreator = await _context.CourseEnrollments
+      var isTeacherOfCourse = await _context.CourseEnrollments
           .AnyAsync(e => e.CourseId == activity.Module.CourseId
               && e.UserId == CurrentUserId
               && e.Role == CourseRole.Teacher);
 
-      if (!isCreator)
+      if (!User.IsInRole("admin") && !isTeacherOfCourse)
       {
         return Forbid();
       }

@@ -184,6 +184,33 @@ public class ActivitiesControllerTests : ApiTestBase, IClassFixture<TestWebAppli
   }
 
   [Fact]
+  public async Task GetAllActivities_ReturnsOnlyEnrolledCourses()
+  {
+    var teacherA = await CreateTeacherAsync("course.teacher.list.a@example.com");
+    var teacherB = await CreateTeacherAsync("course.teacher.list.b@example.com");
+
+    var courseAId = await CreateCourseAsync(teacherA.AccessToken, Jan1, Jan31);
+    var moduleAId = await CreateModuleAsync(teacherA.AccessToken, courseAId, Jan1, Jan31);
+    var activityAId = await CreateActivityAsync(teacherA.AccessToken, moduleAId, Jan1, Jan31);
+
+    var courseBId = await CreateCourseAsync(teacherB.AccessToken, Jan1, Jan31);
+    var moduleBId = await CreateModuleAsync(teacherB.AccessToken, courseBId, Jan1, Jan31);
+    var activityBId = await CreateActivityAsync(teacherB.AccessToken, moduleBId, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        "/api/activities",
+        teacherA.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var activities = await response.Content.ReadFromJsonAsync<List<ActivityDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(activities);
+    Assert.Contains(activities, a => a.Id == activityAId);
+    Assert.DoesNotContain(activities, a => a.Id == activityBId);
+  }
+
+  [Fact]
   public async Task CreateActivity_WithEndBeforeStart_ReturnsBadRequest()
   {
     var teacher = await CreateTeacherAsync("course.teacher.wrong.dates@example.com");

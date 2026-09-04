@@ -31,11 +31,18 @@ namespace lmsPortalBe.Controllers
     [HttpGet]
     public async Task<IActionResult> GetAllActivities()
     {
-      var courses = await _context.Activities
+      var enrolledCourses = await _context.CourseEnrollments
+        .Where(e => e.UserId == CurrentUserId)
+        .Select(e => e.CourseId)
+        .ToListAsync();
+
+      var activities = await _context.CourseModules
+          .Where(m => enrolledCourses.Contains(m.CourseId))
+          .SelectMany(m => m.Activities)
           .OrderBy(a => a.StartDate)
           .ToListAsync();
 
-      return Ok(courses.Select(_mapper.Map<ActivityDto>));
+      return Ok(activities.Select(_mapper.Map<ActivityDto>));
     }
 
     [HttpGet("mine")]
@@ -51,7 +58,7 @@ namespace lmsPortalBe.Controllers
           .SelectMany(m => m.Activities)
           .OrderBy(a => a.StartDate)
           .ToListAsync();
-      
+
 
       return Ok(activities.Select(_mapper.Map<ActivityDto>));
     }
@@ -78,7 +85,7 @@ namespace lmsPortalBe.Controllers
       {
         return NotFound();
       }
-      
+
       var activities = await _context.Activities
           .Where(a => a.ModuleId == id)
           .OrderBy(a => a.StartDate)
@@ -123,7 +130,7 @@ namespace lmsPortalBe.Controllers
       {
         ModuleId = dto.ModuleId,
         Name = dto.Name,
-        ActivityType = (ActivityType) result,
+        ActivityType = (ActivityType)result,
         Description = dto.Description,
         StartDate = dto.StartDate,
         EndDate = dto.EndDate
@@ -211,7 +218,7 @@ namespace lmsPortalBe.Controllers
 
       if (Enum.TryParse(typeof(ActivityType), dto.Type, out object? result))
       {
-        activity.ActivityType = (ActivityType) result;
+        activity.ActivityType = (ActivityType)result;
       }
 
       if (dto.Name is not null)

@@ -97,7 +97,32 @@ namespace lmsPortalBe.Controllers
       return Ok(_mapper.Map<CourseModuleSummaryDto>(module));
     }
 
+    [HttpGet("/api/courses/{courseId:int}/modules")]
+    public async Task<IActionResult> GetCourseModules(int courseId)
+    {
+      var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == courseId);
 
+      if (course is null)
+      {
+        return NotFound("Course not found.");
+      }
+
+      var canView = User.IsInRole("admin")
+          || await _context.CourseEnrollments
+              .AnyAsync(e => e.CourseId == courseId && e.UserId == CurrentUserId);
+
+      if (!canView)
+      {
+        return Forbid();
+      }
+
+      var modules = await _context.CourseModules
+          .Where(m => m.CourseId == courseId)
+          .OrderBy(m => m.StartDate)
+          .ToListAsync();
+
+      return Ok(modules.Select(_mapper.Map<CourseModuleSummaryDto>));
+    }
 
     [HttpPost]
     [Authorize(Roles = "teacher,admin")]

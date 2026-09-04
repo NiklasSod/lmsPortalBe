@@ -159,15 +159,15 @@ public static class DbSeeder
     foreach (var (name, description, start, end, course) in modules)
     {
       var module = new CourseModule { Name = name, Description = description, StartDate = start, EndDate = end, Course = course, CourseId = course.Id };
-      var firstActivity = new Activity {Name = "First Activity", Description = "First", StartDate = start, EndDate = start.AddHours(2), ActivityType= ActivityType.Lecture};
-      var secondActivity = new Activity {Name = "Second Activity", Description = "Second", StartDate = start.AddDays(1), EndDate = start.AddDays(1).AddHours(2), ActivityType= ActivityType.Mentorship};
+      var firstActivity = new Activity { Name = "First Activity", Description = "First", StartDate = start, EndDate = start.AddHours(2), ActivityType = ActivityType.Lecture };
+      var secondActivity = new Activity { Name = "Second Activity", Description = "Second", StartDate = start.AddDays(1), EndDate = start.AddDays(1).AddHours(2), ActivityType = ActivityType.Mentorship };
       module.Activities.Add(firstActivity);
       module.Activities.Add(secondActivity);
       context.CourseModules.Add(module);
     }
 
     await context.SaveChangesAsync();
-    
+
 
     // TEACHERS
     var teachers = new (string FirstName, string LastName, CourseModel Course)[]

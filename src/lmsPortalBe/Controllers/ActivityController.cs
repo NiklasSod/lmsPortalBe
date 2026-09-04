@@ -121,7 +121,7 @@ namespace lmsPortalBe.Controllers
         return BadRequest("The activity seem to extend outside the module's timeframe, check the start and end dates.");
       }
 
-      if (!Enum.TryParse(typeof(ActivityType), dto.Type, out object? result))
+      if (!Enum.TryParse<ActivityType>(dto.Type, ignoreCase: true, out var type))
       {
         return BadRequest("Cannot recognize activity type.");
       }
@@ -130,7 +130,7 @@ namespace lmsPortalBe.Controllers
       {
         ModuleId = dto.ModuleId,
         Name = dto.Name,
-        ActivityType = (ActivityType)result,
+        ActivityType = type,
         Description = dto.Description,
         StartDate = dto.StartDate,
         EndDate = dto.EndDate
@@ -208,9 +208,14 @@ namespace lmsPortalBe.Controllers
         return BadRequest("Activity can't extend outside the module's timeframe, check the start and end dates.");
       }
 
-      if (Enum.TryParse(typeof(ActivityType), dto.Type, out object? result))
+      if (!string.IsNullOrWhiteSpace(dto.Type))
       {
-        activity.ActivityType = (ActivityType)result;
+        if (!Enum.TryParse<ActivityType>(dto.Type, ignoreCase: true, out var type))
+        {
+          return BadRequest("Cannot recognize activity type.");
+        }
+
+        activity.ActivityType = type;
       }
 
       if (dto.Name is not null)

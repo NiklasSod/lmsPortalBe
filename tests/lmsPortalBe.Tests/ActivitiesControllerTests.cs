@@ -371,6 +371,31 @@ public class ActivitiesControllerTests : ApiTestBase, IClassFixture<TestWebAppli
   }
 
   [Fact]
+  public async Task UpdateActivity_MoveToOwnedModule_ReturnsOkAndMoves()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.move.owned@example.com");
+
+    var sourceCourseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
+    var sourceModuleId = await CreateModuleAsync(teacher.AccessToken, sourceCourseId, Jan1, Jan31);
+    var activityId = await CreateActivityAsync(teacher.AccessToken, sourceModuleId, Jan1, Jan31);
+
+    var targetCourseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
+    var targetModuleId = await CreateModuleAsync(teacher.AccessToken, targetCourseId, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/activities/{activityId}",
+        teacher.AccessToken,
+        new UpdateActivityRequestDto { ModuleId = targetModuleId });
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var body = await response.Content.ReadFromJsonAsync<ActivityDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(body);
+    Assert.Equal(targetModuleId, body.ModuleId);
+  }
+
+  [Fact]
   public async Task UpdateActivity_WithStartAfterEnd_ReturnsBadRequest()
   {
     var teacher = await CreateTeacherAsync("course.teacher.update.start@example.com");

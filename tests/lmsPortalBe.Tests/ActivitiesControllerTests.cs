@@ -158,6 +158,32 @@ public class ActivitiesControllerTests : ApiTestBase, IClassFixture<TestWebAppli
   }
 
   [Fact]
+  public async Task CreateActivity_AsNonOwnerTeacher_ReturnsForbidden()
+  {
+    var creator = await CreateTeacherAsync("course.teacher.create.creator@example.com");
+    var other = await CreateTeacherAsync("course.teacher.create.other@example.com");
+
+    var courseId = await CreateCourseAsync(creator.AccessToken, Jan1, Jan31);
+    var moduleId = await CreateModuleAsync(creator.AccessToken, courseId, Jan1, Jan31);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/activities",
+        other.AccessToken,
+        new CreateActivityRequestDto
+        {
+          ModuleId = moduleId,
+          Type = "Lecture",
+          Name = "Algebra",
+          Description = "Intro to algebra",
+          StartDate = Jan1,
+          EndDate = Jan31
+        });
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
   public async Task CreateActivity_WithEndBeforeStart_ReturnsBadRequest()
   {
     var teacher = await CreateTeacherAsync("course.teacher.wrong.dates@example.com");

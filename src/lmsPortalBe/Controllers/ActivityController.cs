@@ -166,55 +166,47 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      if (dto.EndDate <= dto.StartDate)
+      var startDate = dto.StartDate ?? activity.StartDate;
+      var endDate = dto.EndDate ?? activity.EndDate;
+
+      if (endDate <= startDate)
       {
         return BadRequest("Activity can't end before it starts, check the start and end dates.");
       }
 
-      var moduleId = dto.ModuleId ?? activity.ModuleId;
       var module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == activity.ModuleId);
       if (module is null)
       {
         return NotFound("Cannot find parent module.");
       }
 
-      var isTeacherOfCourse = await _context.CourseEnrollments
-          .AnyAsync(e => e.CourseId == module.CourseId
-              && e.UserId == CurrentUserId
-              && e.Role == CourseRole.Teacher);
-
-      if (!User.IsInRole("admin") && !isTeacherOfCourse)
+      if (!User.IsInRole("admin") && !await IsCourseTeacherAsync(module.CourseId))
       {
         return Forbid();
       }
 
-      if (dto.ModuleId is not null)
+      if (dto.ModuleId is not null && dto.ModuleId != activity.ModuleId)
       {
-        module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == activity.ModuleId);
-        if (module is null)
+        var destinationModule = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == dto.ModuleId.Value);
+        if (destinationModule is null)
         {
           return NotFound("Cannot find destination module.");
         }
 
-        var isTeacherOfDestinationCourse = await _context.CourseEnrollments
-          .AnyAsync(e => e.CourseId == module.CourseId
-              && e.UserId == CurrentUserId
-              && e.Role == CourseRole.Teacher);
-
-        if (!User.IsInRole("admin") && !isTeacherOfDestinationCourse)
+        if (!User.IsInRole("admin") && !await IsCourseTeacherAsync(destinationModule.CourseId))
         {
           return Forbid();
         }
+
+        activity.ModuleId = destinationModule.Id;
+        module = destinationModule;
       }
 
-      if (dto.EndDate < module.StartDate || dto.EndDate > module.EndDate ||
-          dto.StartDate < module.StartDate || dto.StartDate > module.EndDate)
+      if (endDate < module.StartDate || endDate > module.EndDate ||
+          startDate < module.StartDate || startDate > module.EndDate)
       {
         return BadRequest("Activity can't extend outside the module's timeframe, check the start and end dates.");
       }
-
-      var startDate = dto.StartDate ?? activity.StartDate;
-      var endDate = dto.EndDate ?? activity.EndDate;
 
       if (Enum.TryParse(typeof(ActivityType), dto.Type, out object? result))
       {

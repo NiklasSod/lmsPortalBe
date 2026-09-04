@@ -23,6 +23,11 @@ namespace lmsPortalBe.Controllers
         User.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? throw new UnauthorizedAccessException("User identity not found.");
 
+    private async Task<bool> IsCourseTeacherAsync(int courseId) =>
+        await _context.CourseEnrollments.AnyAsync(e => e.CourseId == courseId
+            && e.UserId == CurrentUserId
+            && e.Role == CourseRole.Teacher);
+
     [HttpGet]
     public async Task<IActionResult> GetAllActivities()
     {
@@ -96,6 +101,11 @@ namespace lmsPortalBe.Controllers
       if (module is null)
       {
         return NotFound("Cannot find module to add activity to.");
+      }
+
+      if (!User.IsInRole("admin") && !await IsCourseTeacherAsync(module.CourseId))
+      {
+        return Forbid();
       }
 
       if (dto.EndDate < module.StartDate || dto.EndDate > module.EndDate ||

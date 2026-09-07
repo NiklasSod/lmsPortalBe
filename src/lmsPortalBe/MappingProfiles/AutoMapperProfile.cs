@@ -22,6 +22,8 @@ namespace lmsPortalBe.MappingProfiles
             CreateMap<Activity, ActivityDto>()
                 .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.ActivityType.ToString()));
             CreateMap<Assignment, AssignmentDto>();
+            CreateMap<Submission, SubmissionDto>()
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()));
         }
     }
 }

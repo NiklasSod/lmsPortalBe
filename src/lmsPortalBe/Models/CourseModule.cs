@@ -10,5 +10,6 @@ namespace lmsPortalBe.Models
         public int CourseId { get; set; }
         public CourseModel Course { get; set; } = null!;
         public ICollection<Activity> Activities { get; set; } = [];
+        public ICollection<Assignment> Assignments { get; set; } = [];
     }
 }

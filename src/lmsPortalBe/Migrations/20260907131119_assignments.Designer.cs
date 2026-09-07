@@ -12,7 +12,7 @@ namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
     [Migration("20260907131119_assignments")]
-    partial class assignments
+    partial class Assignments
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

@@ -229,7 +229,7 @@ public class AssignmentsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
 
     var response = await SendAuthorizedAsync(
         HttpMethod.Post,
-        "/api/assignment",
+        "/api/assignments",
         teacher.AccessToken,
         new CreateAssignmentRequestDto
         {
@@ -251,7 +251,7 @@ public class AssignmentsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
 
     var response = await SendAuthorizedAsync(
         HttpMethod.Post,
-        "/api/assignment",
+        "/api/assignments",
         teacher.AccessToken,
         new CreateAssignmentRequestDto
         {

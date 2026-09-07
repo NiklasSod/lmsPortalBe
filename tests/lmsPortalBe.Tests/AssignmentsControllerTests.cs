@@ -448,7 +448,7 @@ public class AssignmentsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
     var teacher = await CreateTeacherAsync("course.teacher.update.end@example.com");
     var courseId = await CreateCourseAsync(teacher.AccessToken, Jan15, Jan31);
     var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan15, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId,Jan31);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan31);
 
     var response = await SendAuthorizedAsync(
         HttpMethod.Patch,
@@ -471,5 +471,38 @@ public class AssignmentsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
         new UpdateAssignmentRequestDto { Name = "Missing" });
 
     Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetCurrentAssignments_AsStudent_ReturnsOnlyOpenAssignments()
+  {
+    var teacher = await CreateTeacherAsync("course.teacher.current@example.com");
+
+    var now = DateTime.UtcNow;
+    var courseId = await CreateCourseAsync(teacher.AccessToken, now.AddDays(-10), now.AddDays(10));
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, now.AddDays(-10), now.AddDays(10));
+
+    var pastAssignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, now.AddDays(-5));
+    var openAssignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, now.AddDays(5));
+
+    var student = await RegisterAsync("course.student.current@example.com");
+    var enroll = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/courses/enroll",
+        student.AccessToken,
+        new EnrollRequestDto { CourseId = courseId });
+    enroll.EnsureSuccessStatusCode();
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        "/api/assignments/current",
+        student.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var assignments = await response.Content.ReadFromJsonAsync<List<AssignmentDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(assignments);
+    Assert.Contains(assignments, a => a.Id == openAssignmentId);
+    Assert.DoesNotContain(assignments, a => a.Id == pastAssignmentId);
   }
 }

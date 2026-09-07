@@ -133,7 +133,6 @@ namespace lmsPortalBe.Controllers
       };
 
       _context.Assignments.Add(assignment);
-      module.Assignments.Add(assignment);
 
       await _context.SaveChangesAsync();
 
@@ -192,7 +191,7 @@ namespace lmsPortalBe.Controllers
         module = destinationModule;
       }
 
-      if (dueDate < module.StartDate || dueDate > module.EndDate )
+      if (dueDate < module.StartDate || dueDate > module.EndDate)
       {
         return BadRequest("Due date must be within module's timeframe.");
       }
@@ -226,12 +225,7 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      var isTeacherOfCourse = await _context.CourseEnrollments
-          .AnyAsync(e => e.CourseId == assignment.Module.CourseId
-              && e.UserId == CurrentUserId
-              && e.Role == CourseRole.Teacher);
-
-      if (!User.IsInRole("admin") && !isTeacherOfCourse)
+      if (!User.IsInRole("admin") && !await IsCourseTeacherAsync(assignment.Module.CourseId))
       {
         return Forbid();
       }

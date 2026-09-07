@@ -8,5 +8,7 @@ namespace lmsPortalBe.Models
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public DateTime DueDate { get; set; } = DateTime.UtcNow;
+        // TODO add this with Submissions 
+        // public ICollection<Submission> Submissions { get; set; } = [];
     }
 }

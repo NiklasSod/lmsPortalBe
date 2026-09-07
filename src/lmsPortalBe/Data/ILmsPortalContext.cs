@@ -11,6 +11,7 @@ namespace lmsPortalBe.Data
         DbSet<CourseEnrollment> CourseEnrollments { get; set; }
         DbSet<CourseModule> CourseModules { get; set; }
         DbSet<Activity> Activities { get; set; }
+        DbSet<Assignment> Assignments { get; set; }
 
         DatabaseFacade Database { get; }
 

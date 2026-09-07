@@ -61,6 +61,24 @@ namespace lmsPortalBe.Controllers
       return Ok(assignments.Select(_mapper.Map<AssignmentDto>));
     }
 
+    [HttpGet("current")]
+    public async Task<IActionResult> GetUserCurrentAssignments()
+    {
+      var enrolledCourses = await _context.CourseEnrollments
+          .Where(e => e.UserId == CurrentUserId)
+          .Select(e => e.CourseId)
+          .ToListAsync();
+
+      var assignments = await _context.CourseModules
+          .Where(m => enrolledCourses.Contains(m.CourseId))
+          .SelectMany(m => m.Assignments)
+          .Where(a => a.DueDate >= DateTime.UtcNow)
+          .OrderBy(a => a.DueDate)
+          .ToListAsync();
+
+      return Ok(assignments.Select(_mapper.Map<AssignmentDto>));
+    }
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetAssignment(int id)
     {

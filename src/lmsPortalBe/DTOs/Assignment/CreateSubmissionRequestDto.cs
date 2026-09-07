@@ -7,8 +7,8 @@ public class CreateSubmissionRequestDto
   [Required]
   public int AssignmentId { get; set; }
   [Required]
-  public int StudentId { get; set; }
-  
+  public string StudentId { get; set; } = string.Empty;
+
   [Required]
   public string Content { get; set; } = string.Empty;
 

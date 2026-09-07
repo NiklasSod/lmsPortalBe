@@ -12,6 +12,7 @@ namespace lmsPortalBe.Data
         public DbSet<CourseEnrollment> CourseEnrollments { get; set; } = null!;
         public DbSet<CourseModule> CourseModules { get; set; } = null!;
         public DbSet<Activity> Activities { get; set; } = null!;
+        public DbSet<Assignment> Assignments { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

@@ -76,11 +76,24 @@ namespace lmsPortalBe.Data
                     .WithOne(a => a.Module)
                     .HasForeignKey(e => e.ModuleId)
                     .OnDelete(DeleteBehavior.Cascade);
+                
+                
+                entity.HasMany(e => e.Assignments)
+                    .WithOne(a => a.Module)
+                    .HasForeignKey(e => e.ModuleId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<Activity>(entity =>
             {
                 entity.ToTable("lmsActivity");
+            });
+
+
+
+            builder.Entity<Assignment>(entity =>
+            {
+                entity.ToTable("lmsAssignment");
             });
         }
     }

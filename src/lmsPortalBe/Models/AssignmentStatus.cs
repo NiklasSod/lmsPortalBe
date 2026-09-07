@@ -4,7 +4,7 @@ namespace lmsPortalBe.Models
   {
     Unsent,
     HandedIn,
-    Complete,
-    Returned
+    Approved,
+    Revision
   }
 }

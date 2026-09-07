@@ -140,9 +140,18 @@ public static class DbSeeder
       EndDate = new DateTime(2026, 12, 11, 17, 0, 0)
     };
 
+    var backendCourse = new CourseModel
+    {
+      Name = "Backend Development",
+      Description = "Build APIs and services with ASP.NET Core.",
+      StartDate = DateTime.Today,
+      EndDate = DateTime.Today.AddMonths(3)
+    };
+
     context.Courses.Add(mathCourse);
     context.Courses.Add(historyCourse);
     context.Courses.Add(csCourse);
+    context.Courses.Add(backendCourse);
     await context.SaveChangesAsync();
 
     // MODULES
@@ -168,10 +177,38 @@ public static class DbSeeder
 
       // ASSIGNMENTS
       var firstAssignment = new Assignment { Name = "First Assignment", Description = "First", DueDate = start };
-      var secondAssignment = new Assignment { Name = "Second Assignment", Description = "Second", DueDate = start.AddDays(1)};
+      var secondAssignment = new Assignment { Name = "Second Assignment", Description = "Second", DueDate = start.AddDays(1) };
       module.Assignments.Add(firstAssignment);
       module.Assignments.Add(secondAssignment);
-      
+
+      context.CourseModules.Add(module);
+    }
+
+    await context.SaveChangesAsync();
+
+    // BACKEND COURSE MODULES
+    var backendModules = new (string Name, string Description, DateTime StartDate, DateTime EndDate)[]
+    {
+      ("C# Fundamentals", "Syntax, types, and OOP basics.", backendCourse.StartDate, backendCourse.StartDate.AddMonths(1)),
+      ("ASP.NET Core", "Controllers, routing, and middleware.", backendCourse.StartDate.AddMonths(1), backendCourse.StartDate.AddMonths(2)),
+      ("Databases & EF Core", "Relational data access and migrations.", backendCourse.StartDate.AddMonths(2), backendCourse.EndDate),
+    };
+
+    foreach (var (name, description, start, end) in backendModules)
+    {
+      var module = new CourseModule
+      {
+        Name = name,
+        Description = description,
+        StartDate = start,
+        EndDate = end,
+        Course = backendCourse,
+        CourseId = backendCourse.Id
+      };
+
+      module.Assignments.Add(new Assignment { Name = "First Assignment", Description = "First", DueDate = start });
+      module.Assignments.Add(new Assignment { Name = "Second Assignment", Description = "Second", DueDate = start.AddDays(1) });
+
       context.CourseModules.Add(module);
     }
 
@@ -200,6 +237,13 @@ public static class DbSeeder
       context.CourseEnrollments.Add(new CourseEnrollment
       {
         CourseId = course.Id,
+        UserId = teacher.Id,
+        Role = CourseRole.Teacher
+      });
+
+      context.CourseEnrollments.Add(new CourseEnrollment
+      {
+        CourseId = backendCourse.Id,
         UserId = teacher.Id,
         Role = CourseRole.Teacher
       });
@@ -243,15 +287,23 @@ public static class DbSeeder
         UserId = student.Id,
         Role = CourseRole.Student
       });
+
+      context.CourseEnrollments.Add(new CourseEnrollment
+      {
+        CourseId = backendCourse.Id,
+        UserId = student.Id,
+        Role = CourseRole.Student
+      });
     }
 
     await context.SaveChangesAsync();
 
     logger.LogInformation(
-        "Seeded demo courses: '{Course1}', '{Course2}' and '{Course3}', with 3 teachers and 17 students.",
+        "Seeded demo courses: '{Course1}', '{Course2}', '{Course3}' and '{Course4}', with 3 teachers and 17 students.",
         mathCourse.Name,
         historyCourse.Name,
-        csCourse.Name);
+        csCourse.Name,
+        backendCourse.Name);
   }
 
   private static async Task<ApplicationUser?> CreateDemoUserAsync(

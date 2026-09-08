@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using lmsPortalBe.Data;
 
@@ -10,9 +11,11 @@ using lmsPortalBe.Data;
 namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
-    partial class LmsPortalContextModelSnapshot : ModelSnapshot
+    [Migration("20260908082426_AddUserProfile")]
+    partial class AddUserProfile
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -414,7 +417,7 @@ namespace lmsPortalBe.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("HandinDate")
+                    b.Property<DateTime>("HandinDate")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
@@ -441,8 +444,8 @@ namespace lmsPortalBe.Migrations
                     b.Property<string>("AboutMe")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateOnly?>("DateOfBirth")
-                        .HasColumnType("TEXT");
+                    b.Property<int?>("Age")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("GitHubLink")
                         .HasColumnType("TEXT");

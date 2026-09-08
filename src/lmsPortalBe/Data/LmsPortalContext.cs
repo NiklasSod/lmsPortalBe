@@ -13,6 +13,7 @@ namespace lmsPortalBe.Data
         public DbSet<CourseModule> CourseModules { get; set; } = null!;
         public DbSet<Activity> Activities { get; set; } = null!;
         public DbSet<Assignment> Assignments { get; set; } = null!;
+        public DbSet<UserProfile> UserProfiles { get; set; } = null!;
         public DbSet<Submission> Submissions { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
@@ -42,6 +43,16 @@ namespace lmsPortalBe.Data
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
+            builder.Entity<UserProfile>(entity =>
+            {
+                entity.ToTable("lmsUserProfile");
+
+                entity.HasOne(e => e.User)
+                    .WithOne(u => u.Profile)
+                    .HasForeignKey<UserProfile>(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
             builder.Entity<CourseModel>(entity =>
             {
                 entity.ToTable("lmsCourse");
@@ -50,7 +61,7 @@ namespace lmsPortalBe.Data
                     .WithOne(e => e.Course)
                     .HasForeignKey(e => e.CourseId)
                     .OnDelete(DeleteBehavior.Cascade);
-                
+
                 entity.HasMany(e => e.Modules)
                     .WithOne(e => e.Course)
                     .HasForeignKey(e => e.CourseId)
@@ -72,13 +83,13 @@ namespace lmsPortalBe.Data
             builder.Entity<CourseModule>(entity =>
             {
                 entity.ToTable("lmsCourseModule");
-                
+
                 entity.HasMany(e => e.Activities)
                     .WithOne(a => a.Module)
                     .HasForeignKey(e => e.ModuleId)
                     .OnDelete(DeleteBehavior.Cascade);
-                
-                
+
+
                 entity.HasMany(e => e.Assignments)
                     .WithOne(a => a.Module)
                     .HasForeignKey(e => e.ModuleId)
@@ -112,9 +123,9 @@ namespace lmsPortalBe.Data
                 entity.HasOne(e => e.Student)
                     .WithMany(u => u.Submissions)
                     .HasForeignKey(e => e.StudentId)
-                    .OnDelete(DeleteBehavior.Cascade); 
+                    .OnDelete(DeleteBehavior.Cascade);
 
-                
+
                 entity.HasOne(e => e.Assignment)
                     .WithMany(u => u.Submissions)
                     .HasForeignKey(e => e.AssignmentId)

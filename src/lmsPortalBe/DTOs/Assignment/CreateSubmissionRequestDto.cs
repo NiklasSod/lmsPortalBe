@@ -12,7 +12,7 @@ public class CreateSubmissionRequestDto
   [Required]
   public string Content { get; set; } = string.Empty;
 
-  public string Feedback { get; set; } = string.Empty;
+  public string? Feedback { get; set; } = string.Empty;
 
-  public DateTime HandinDate { get; set; } = DateTime.UtcNow;
+  public DateTime? HandinDate { get; set; } = DateTime.UtcNow;
 }

@@ -4,6 +4,7 @@ using lmsPortalBe.Data;
 using lmsPortalBe.DTOs.Course;
 using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,58 +13,58 @@ namespace lmsPortalBe.Controllers
   [Route("api/[controller]")]
   public class SubmissionsController(
       ILmsPortalContext context,
-      IMapper mapper) 
+      IMapper mapper,
+      UserManager<ApplicationUser> userManager) 
       : CoursePortalControllerBase(context, mapper)
   {
+    private readonly UserManager<ApplicationUser> _userManager = userManager;
+
     [HttpGet]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> GetAllAssignments()
+    public async Task<IActionResult> GetAllSubmissions()
     {
-      var assignments = await _context.Assignments
-          .OrderBy(a => a.DueDate)
+      var submission = await _context.Submissions
+          .OrderBy(a => a.HandinDate)
           .ToListAsync();
 
-      return Ok(assignments.Select(_mapper.Map<AssignmentDto>));
+      return Ok(submission.Select(_mapper.Map<SubmissionDto>));
     }
 
     [HttpGet("mine")]
-    public async Task<IActionResult> GetUserAssignments()
+    public async Task<IActionResult> GetUserSubmissions()
     {
-      var enrolledCourses = await _context.CourseEnrollments
-        .Where(e => e.UserId == CurrentUserId)
-        .Select(e => e.CourseId)
-        .ToListAsync();
+      var user = await _userManager.FindByIdAsync(CurrentUserId);
+      if (user is null)
+      {
+        return NotFound();
+      }
 
-      var assignments = await _context.CourseModules
-          .Where(m => enrolledCourses.Contains(m.CourseId))
-          .SelectMany(m => m.Assignments)
-          .OrderBy(a => a.DueDate)
-          .ToListAsync();
-
-
-      return Ok(assignments.Select(_mapper.Map<AssignmentDto>));
-    }
-
-    [HttpGet("current")]
-    public async Task<IActionResult> GetUserCurrentAssignments()
-    {
-      var enrolledCourses = await _context.CourseEnrollments
-          .Where(e => e.UserId == CurrentUserId)
-          .Select(e => e.CourseId)
-          .ToListAsync();
-
-      var assignments = await _context.CourseModules
-          .Where(m => enrolledCourses.Contains(m.CourseId))
-          .SelectMany(m => m.Assignments)
-          .Where(a => a.DueDate >= DateTime.UtcNow)
-          .OrderBy(a => a.DueDate)
-          .ToListAsync();
-
-      return Ok(assignments.Select(_mapper.Map<AssignmentDto>));
+      return Ok(user.Submissions.Select(_mapper.Map<SubmissionDto>));
     }
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetAssignment(int id)
+    public async Task<IActionResult> GetSubmission(int id)
+    {
+      var submission = await _context.Submissions
+          .Include(s => s.Assignment)
+          .ThenInclude(a => a.Module)
+          .FirstOrDefaultAsync(s => s.Id == id);
+
+      if (submission is null)
+      {
+        return NotFound();
+      }
+
+      if (!User.IsInRole("admin") && !await IsEnrolledAsync(submission.Assignment.Module.CourseId))
+      {
+        return Forbid();
+      }
+
+      return Ok(_mapper.Map<SubmissionDto>(submission));
+    }
+
+    [HttpGet("/api/assignments/{id:int}/submissions")]
+    public async Task<IActionResult> GetAssignmentSubmissions(int id)
     {
       var assignment = await _context.Assignments
           .Include(a => a.Module)
@@ -78,152 +79,26 @@ namespace lmsPortalBe.Controllers
         return Forbid();
       }
 
-      return Ok(_mapper.Map<AssignmentDto>(assignment));
-    }
-
-    [HttpGet("/api/modules/{id:int}/assignments")]
-    public async Task<IActionResult> GetModuleAssignments(int id)
-    {
-      var module = await _context.CourseModules
-          .FirstOrDefaultAsync(c => c.Id == id);
-      if (module is null)
-      {
-        return NotFound();
-      }
-
-      if (!User.IsInRole("admin") && !await IsEnrolledAsync(module.CourseId))
-      {
-        return Forbid();
-      }
-
-      var assignments = await _context.Assignments
-          .Where(a => a.ModuleId == id)
-          .OrderBy(a => a.DueDate)
+      var submissions = await _context.Submissions
+          .Where(s => s.AssignmentId == id)
+          .OrderBy(s => s.HandinDate)
           .ToListAsync();
 
-      return Ok(assignments.Select(_mapper.Map<AssignmentDto>));
+      return Ok(submissions.Select(_mapper.Map<SubmissionDto>));
     }
 
     [HttpPost]
     [Authorize(Roles = "teacher,admin")]
-    public async Task<IActionResult> CreateAssignment(CreateAssignmentRequestDto dto)
+    public async Task<IActionResult> CreateSubmission(CreateSubmissionRequestDto dto)
     {
 
-      var module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == dto.ModuleId);
-      if (module is null)
+      var assignment = await _context.Assignments
+        .Include(a => a.Module)
+        .FirstOrDefaultAsync(a => a.Id == dto.AssignmentId);
+
+      if (assignment is null)
       {
         return NotFound("Cannot find module to add assignment to.");
-      }
-
-      if (!User.IsInRole("admin") && !await IsCourseTeacherAsync(module.CourseId))
-      {
-        return Forbid();
-      }
-
-      if (dto.DueDate < module.StartDate || dto.DueDate > module.EndDate)
-      {
-        return BadRequest("The due date is outside the time frame of the module.");
-      }
-
-      var assignment = new Assignment
-      {
-        ModuleId = dto.ModuleId,
-        Name = dto.Name,
-        Description = dto.Description,
-        DueDate = dto.DueDate,
-      };
-
-      _context.Assignments.Add(assignment);
-
-      await _context.SaveChangesAsync();
-
-      return CreatedAtAction(nameof(GetAssignment), new { id = assignment.Id }, _mapper.Map<AssignmentDto>(assignment));
-    }
-
-
-    [HttpPost("/api/modules/{moduleId:int}/assignments")]
-    [Authorize(Roles = "teacher,admin")]
-    public async Task<IActionResult> CreateAssignmentInModule(int moduleId, CreateAssignmentRequestDto dto)
-    {
-      if (dto.ModuleId != moduleId)
-      {
-        return BadRequest("Module Id in request body does not match id in route.");
-      }
-      return await CreateAssignment(dto);
-    }
-
-    [HttpPatch("{id:int}")]
-    [Authorize(Roles = "teacher,admin")]
-    public async Task<IActionResult> UpdateAssignment(int id, UpdateAssignmentRequestDto dto)
-    {
-      var assignment = await _context.Assignments.FirstOrDefaultAsync(a => a.Id == id);
-      if (assignment is null)
-      {
-        return NotFound();
-      }
-
-      var dueDate = dto.DueDate ?? assignment.DueDate;
-
-      var module = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == assignment.ModuleId);
-      if (module is null)
-      {
-        return NotFound("Cannot find parent module.");
-      }
-
-      if (!User.IsInRole("admin") && !await IsCourseTeacherAsync(module.CourseId))
-      {
-        return Forbid();
-      }
-
-      if (dto.ModuleId is not null && dto.ModuleId != assignment.ModuleId)
-      {
-        var destinationModule = await _context.CourseModules.FirstOrDefaultAsync(c => c.Id == dto.ModuleId.Value);
-        if (destinationModule is null)
-        {
-          return NotFound("Cannot find destination module.");
-        }
-
-        if (!User.IsInRole("admin") && !await IsCourseTeacherAsync(destinationModule.CourseId))
-        {
-          return Forbid();
-        }
-
-        assignment.ModuleId = destinationModule.Id;
-        module = destinationModule;
-      }
-
-      if (dueDate < module.StartDate || dueDate > module.EndDate)
-      {
-        return BadRequest("Due date must be within module's timeframe.");
-      }
-
-      if (dto.Name is not null)
-      {
-        assignment.Name = dto.Name;
-      }
-
-      if (dto.Description is not null)
-      {
-        assignment.Description = dto.Description;
-      }
-
-      assignment.DueDate = dueDate;
-
-      await _context.SaveChangesAsync();
-
-      return Ok(_mapper.Map<AssignmentDto>(assignment));
-    }
-
-    [HttpDelete("{id:int}")]
-    [Authorize(Roles = "teacher,admin")]
-    public async Task<IActionResult> DeleteAssignment(int id)
-    {
-      var assignment = await _context.Assignments
-          .Include(c => c.Module)
-          .FirstOrDefaultAsync(c => c.Id == id);
-      if (assignment is null)
-      {
-        return NotFound();
       }
 
       if (!User.IsInRole("admin") && !await IsCourseTeacherAsync(assignment.Module.CourseId))
@@ -231,7 +106,137 @@ namespace lmsPortalBe.Controllers
         return Forbid();
       }
 
-      _context.Assignments.Remove(assignment);
+      var submission = new Submission
+      {
+        AssignmentId = dto.AssignmentId,
+        StudentId = dto.StudentId,
+        Content = dto.Content,
+        Feedback = dto.Feedback ?? string.Empty,
+        HandinDate = dto.HandinDate,
+      };
+
+      _context.Submissions.Add(submission);
+
+      await _context.SaveChangesAsync();
+
+      return CreatedAtAction(nameof(GetSubmission), new { id = submission.Id }, _mapper.Map<SubmissionDto>(submission));
+    }
+
+
+    [HttpPost("/api/assignments/{id:int}")]
+    [Authorize(Roles = "teacher,admin")]
+    public async Task<IActionResult> CreateAssignmentInModule(int id, CreateSubmissionRequestDto dto)
+    {
+      if (dto.AssignmentId != id)
+      {
+        return BadRequest("Assignment Id in request body does not match id in route.");
+      }
+      return await CreateSubmission(dto);
+    }
+
+    [HttpPatch("{id:int}")]
+    [Authorize(Roles = "teacher,admin")]
+    public async Task<IActionResult> UpdateSubmission(int id, UpdateSubmissionRequestDto dto)
+    {
+      var submission = await _context.Submissions.FirstOrDefaultAsync(s => s.Id == id);
+      if (submission is null)
+      {
+        return NotFound();
+      }
+
+      if (!User.IsInRole("admin") 
+            && !User.IsInRole("teacher") 
+            && submission.StudentId != CurrentUserId)
+      {
+        return Forbid();
+      }
+      
+      if (dto.AssignmentId is not null)
+      {
+        if (!User.IsInRole("admin"))
+        {
+            return Forbid("No permission to change assignment.");
+        }
+
+        var assignment = await _context.Assignments
+          .FirstOrDefaultAsync(a => a.Id == dto.AssignmentId);
+
+        if (assignment is null)
+        {
+            return NotFound("Destination assignment does not exist.");
+        }
+
+        submission.AssignmentId = (int)dto.AssignmentId;
+      }
+
+      if (dto.StudentId is not null) {
+        
+        if (!User.IsInRole("admin"))
+        {
+            return Forbid("No permission to change student.");
+        }
+
+        var student = await _userManager.FindByIdAsync(dto.StudentId);
+
+        if (student is null)
+        {
+            return NotFound("Destination student does not exist.");
+        }
+
+        submission.StudentId = dto.StudentId;
+      }
+
+      if (dto.Feedback is not null) 
+      {
+        
+        if (!User.IsInRole("admin") 
+            && !User.IsInRole("teacher"))
+        {
+            return Forbid("No permission to send feedback.");
+        }
+
+        submission.Feedback = dto.Feedback;
+      }
+
+      if (dto.HandinDate is not null)
+      {
+        if (submission.HandinDate is not null
+              && !User.IsInRole("admin"))
+        {
+          return Forbid("No permission to change handin date after the fact.");
+        }
+        submission.HandinDate = dto.HandinDate;
+      }
+
+      submission.Content = dto.Content ?? submission.Content;
+
+      await _context.SaveChangesAsync();
+
+      return Ok(_mapper.Map<SubmissionDto>(submission));
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = "teacher,admin")]
+    public async Task<IActionResult> DeleteSubmission(int id)
+    {
+      var submission = await _context.Submissions
+          .Include(s => s.Assignment)
+          .ThenInclude(a => a.Module)
+          .FirstOrDefaultAsync(s => s.Id == id);
+          
+      if (submission is null)
+      {
+        return NotFound();
+      }
+
+      if (!User.IsInRole("admin") 
+          && !await IsCourseTeacherAsync(submission.Assignment.Module.CourseId)
+          && submission.StudentId != CurrentUserId)
+      {
+        return Forbid();
+      }
+
+      _context.Submissions.Remove(submission);
       await _context.SaveChangesAsync();
 
       return NoContent();

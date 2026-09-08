@@ -13,6 +13,7 @@ namespace lmsPortalBe.Data
         public DbSet<CourseModule> CourseModules { get; set; } = null!;
         public DbSet<Activity> Activities { get; set; } = null!;
         public DbSet<Assignment> Assignments { get; set; } = null!;
+        public DbSet<Submission> Submission { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -94,6 +95,30 @@ namespace lmsPortalBe.Data
             builder.Entity<Assignment>(entity =>
             {
                 entity.ToTable("lmsAssignment");
+
+                entity.HasMany(e => e.Submissions)
+                    .WithOne(a => a.Assignment)
+                    .HasForeignKey(e => e.AssignmentId)
+                    .OnDelete(DeleteBehavior.Cascade); // TODO: verify correct delete behavior
+            });
+
+            builder.Entity<Submission>(entity =>
+            {
+                entity.ToTable("lmsSubmission");
+
+
+                entity.HasIndex(e => new { e.StudentId, e.AssignmentId });
+
+                entity.HasOne(e => e.Student)
+                    .WithMany(u => u.Submissions)
+                    .HasForeignKey(e => e.StudentId)
+                    .OnDelete(DeleteBehavior.Cascade); 
+
+                
+                entity.HasOne(e => e.Assignment)
+                    .WithMany(u => u.Submissions)
+                    .HasForeignKey(e => e.AssignmentId)
+                    .OnDelete(DeleteBehavior.ClientSetNull); // Students may wish to keep their work even if an assignment is deleted
             });
         }
     }

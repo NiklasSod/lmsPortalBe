@@ -12,8 +12,7 @@ namespace lmsPortalBe.Data
         DbSet<CourseModule> CourseModules { get; set; }
         DbSet<Activity> Activities { get; set; }
         DbSet<Assignment> Assignments { get; set; }
-        // TODO add this with SubMissions
-        // DbSet<SubMission> SubMission { get; set; }
+        DbSet<Submission> Submission { get; set; }
 
         DatabaseFacade Database { get; }
 

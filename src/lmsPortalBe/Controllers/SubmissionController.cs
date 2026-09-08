@@ -10,12 +10,11 @@ using Microsoft.EntityFrameworkCore;
 namespace lmsPortalBe.Controllers
 {
   [Route("api/[controller]")]
-  public class AssignmentsController(
+  public class SubmissionsController(
       ILmsPortalContext context,
       IMapper mapper) 
       : CoursePortalControllerBase(context, mapper)
   {
-
     [HttpGet]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> GetAllAssignments()

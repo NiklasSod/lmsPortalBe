@@ -180,4 +180,103 @@ public class AccountControllerTests : ApiTestBase, IClassFixture<TestWebApplicat
 
     Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
   }
+
+  [Fact]
+  public async Task ChangePassword_WithoutToken_ReturnsUnauthorized()
+  {
+    var response = await Client.PostAsync(
+        "/api/account/change-password",
+        JsonContent.Create(new ChangePasswordRequestDto
+        {
+          CurrentPassword = "Passw0rd1",
+          NewPassword = "NewPassw0rd1"
+        }),
+        TestContext.Current.CancellationToken);
+
+    Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task ChangePassword_AsStudent_SucceedsAndOldPasswordFails()
+  {
+    var student = await RegisterAsync("change.pw.student@example.com");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/account/change-password",
+        student.AccessToken,
+        new ChangePasswordRequestDto
+        {
+          CurrentPassword = "Passw0rd1",
+          NewPassword = "NewPassw0rd1"
+        });
+
+    Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+    var oldLogin = await Client.PostAsJsonAsync(
+        "/api/auth/login",
+        new LoginRequestDto { Email = "change.pw.student@example.com", Password = "Passw0rd1" },
+        TestContext.Current.CancellationToken);
+    Assert.Equal(HttpStatusCode.Unauthorized, oldLogin.StatusCode);
+
+    var newLogin = await Client.PostAsJsonAsync(
+        "/api/auth/login",
+        new LoginRequestDto { Email = "change.pw.student@example.com", Password = "NewPassw0rd1" },
+        TestContext.Current.CancellationToken);
+    Assert.Equal(HttpStatusCode.OK, newLogin.StatusCode);
+  }
+
+  [Fact]
+  public async Task ChangePassword_AsTeacher_Succeeds()
+  {
+    var teacher = await CreateTeacherAsync("change.pw.teacher@example.com");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/account/change-password",
+        teacher.AccessToken,
+        new ChangePasswordRequestDto
+        {
+          CurrentPassword = "Passw0rd1",
+          NewPassword = "NewPassw0rd1"
+        });
+
+    Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task ChangePassword_WrongCurrentPassword_ReturnsBadRequest()
+  {
+    var student = await RegisterAsync("change.pw.wrong@example.com");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/account/change-password",
+        student.AccessToken,
+        new ChangePasswordRequestDto
+        {
+          CurrentPassword = "WrongPassw0rd1",
+          NewPassword = "NewPassw0rd1"
+        });
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task ChangePassword_WeakNewPassword_ReturnsBadRequest()
+  {
+    var student = await RegisterAsync("change.pw.weak@example.com");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/account/change-password",
+        student.AccessToken,
+        new ChangePasswordRequestDto
+        {
+          CurrentPassword = "Passw0rd1",
+          NewPassword = "short"
+        });
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
 }

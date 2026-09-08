@@ -234,6 +234,8 @@ public static class DbSeeder
         continue;
       }
 
+      await EnsureProfileAsync(context, teacher, firstName, lastName, course.Name, "teacher");
+
       context.CourseEnrollments.Add(new CourseEnrollment
       {
         CourseId = course.Id,
@@ -280,6 +282,8 @@ public static class DbSeeder
       {
         continue;
       }
+
+      await EnsureProfileAsync(context, student, firstName, lastName, course.Name, "student");
 
       context.CourseEnrollments.Add(new CourseEnrollment
       {
@@ -351,5 +355,34 @@ public static class DbSeeder
     }
 
     return user;
+  }
+
+  private static async Task EnsureProfileAsync(
+      ILmsPortalContext context,
+      ApplicationUser user,
+      string firstName,
+      string lastName,
+      string courseName,
+      string role)
+  {
+    if (await context.UserProfiles.AnyAsync(p => p.UserId == user.Id))
+    {
+      return;
+    }
+
+    var skills = role == "teacher"
+        ? new List<string> { courseName, "Mentoring" }
+        : new List<string> { courseName, "Teamwork" };
+
+    var daysOffset = (firstName.Length * 137 + lastName.Length * 97) % 4000;
+
+    context.UserProfiles.Add(new UserProfile
+    {
+      UserId = user.Id,
+      AboutMe = $"{firstName} {lastName} — demo {role} account.",
+      GitHubLink = $"https://github.com/{firstName.ToLowerInvariant()}{lastName.ToLowerInvariant()}",
+      Skills = skills,
+      DateOfBirth = new DateOnly(1985, 1, 1).AddDays(daysOffset)
+    });
   }
 }

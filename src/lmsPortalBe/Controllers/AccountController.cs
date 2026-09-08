@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using lmsPortalBe.DTOs.Auth;
 using lmsPortalBe.DTOs.User;
 using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -53,6 +54,30 @@ namespace lmsPortalBe.Controllers
         {
           return BadRequest(updateResult.Errors.Select(e => e.Description));
         }
+      }
+
+      return NoContent();
+    }
+
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword(ChangePasswordRequestDto dto)
+    {
+      var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+      if (string.IsNullOrEmpty(userId))
+      {
+        return Unauthorized("User identity not found.");
+      }
+
+      var user = await _userManager.FindByIdAsync(userId);
+      if (user is null)
+      {
+        return NotFound("User not found.");
+      }
+
+      var result = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
+      if (!result.Succeeded)
+      {
+        return BadRequest(result.Errors.Select(e => e.Description));
       }
 
       return NoContent();

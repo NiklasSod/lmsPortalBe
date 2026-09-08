@@ -13,6 +13,7 @@ namespace lmsPortalBe.Data
         DbSet<Activity> Activities { get; set; }
         DbSet<Assignment> Assignments { get; set; }
         DbSet<Submission> Submission { get; set; }
+        DbSet<UserProfile> UserProfiles { get; set; }
 
         DatabaseFacade Database { get; }
 

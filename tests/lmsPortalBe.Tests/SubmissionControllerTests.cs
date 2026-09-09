@@ -182,6 +182,78 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
   }
 
   [Fact]
+  public async Task HandInSubmission_AsTeacher_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("sub.teacher.handin.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    // Even though a teacher still holds the "student" role from registration,
+    // they are not enrolled as a student and must not be able to hand in.
+    var response = await HandInAsync(teacher.AccessToken, assignmentId, "Teacher's own answer.");
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task HandInSubmission_WhileAlreadyHandedIn_ReturnsConflict()
+  {
+    var teacher = await CreateTeacherAsync("sub.pending.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.pending.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var first = await HandInAsync(student.AccessToken, assignmentId, "First hand-in.");
+    Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+
+    // Not allowed to hand in again before the teacher has graded.
+    var second = await HandInAsync(student.AccessToken, assignmentId, "Second hand-in while pending.");
+    Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+  }
+
+  [Fact]
+  public async Task GradeSubmission_StaleSubmission_ReturnsBadRequest()
+  {
+    var teacher = await CreateTeacherAsync("sub.stale.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.stale.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var first = await HandInAsync(student.AccessToken, assignmentId, "Draft.");
+    var firstBody = await first.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(firstBody);
+
+    // Teacher sends it back for revision.
+    var revision = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/submissions/{firstBody.Id}",
+        teacher.AccessToken,
+        new UpdateSubmissionRequestDto { Status = "Revision" });
+    Assert.Equal(HttpStatusCode.OK, revision.StatusCode);
+
+    // Student hands in again -> the new row is now the latest.
+    var second = await HandInAsync(student.AccessToken, assignmentId, "Revised.");
+    Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+    var secondBody = await second.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(secondBody);
+
+    // Grading the older row is not allowed.
+    var staleGrade = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/submissions/{firstBody.Id}",
+        teacher.AccessToken,
+        new UpdateSubmissionRequestDto { Status = "Approved" });
+    Assert.Equal(HttpStatusCode.BadRequest, staleGrade.StatusCode);
+  }
+
+  [Fact]
   public async Task HandInSubmission_UnenrolledStudent_ReturnsForbidden()
   {
     var teacher = await CreateTeacherAsync("sub.unenrolled.teacher@example.com");

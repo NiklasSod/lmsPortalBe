@@ -90,18 +90,27 @@ namespace lmsPortalBe.Controllers
         return NotFound("Assignment not found.");
       }
 
-      if (!await IsEnrolledAsync(assignment.Module.CourseId))
+      if (!await IsEnrolledAsStudentAsync(assignment.Module.CourseId))
       {
         return Forbid();
       }
 
-      var alreadyApproved = await _context.Submissions.AnyAsync(s =>
-          s.AssignmentId == assignment.Id
-          && s.StudentId == CurrentUserId
-          && s.Status == AssignmentStatus.Approved);
-      if (alreadyApproved)
+      var latest = await _context.Submissions
+          .Where(s => s.AssignmentId == assignment.Id && s.StudentId == CurrentUserId)
+          .OrderByDescending(s => s.Id)
+          .FirstOrDefaultAsync();
+
+      if (latest is not null)
       {
-        return Conflict("This assignment has already been approved.");
+        if (latest.Status == AssignmentStatus.Approved)
+        {
+          return Conflict("This assignment has already been approved.");
+        }
+
+        if (latest.Status == AssignmentStatus.HandedIn)
+        {
+          return Conflict("You have already handed in this assignment; wait for the teacher's feedback.");
+        }
       }
 
       var submission = new Submission
@@ -132,6 +141,22 @@ namespace lmsPortalBe.Controllers
       if (!await CanGradeAsync(submission))
       {
         return Forbid();
+      }
+
+      var assignmentId = submission.AssignmentId;
+      if (assignmentId is not null)
+      {
+        var latestId = await _context.Submissions
+            .Where(s => s.AssignmentId == assignmentId
+                && s.StudentId == submission.StudentId)
+            .OrderByDescending(s => s.Id)
+            .Select(s => s.Id)
+            .FirstOrDefaultAsync();
+
+        if (submission.Id != latestId)
+        {
+          return BadRequest("Only the latest submission can be graded.");
+        }
       }
 
       if (dto.Feedback is null && dto.Status is null)

@@ -46,7 +46,6 @@ namespace lmsPortalBe.Controllers
 
       if (!User.IsInRole("admin"))
       {
-        // A teacher only sees pending submissions for courses they teach.
         query = query.Where(s => s.Assignment != null
             && _context.CourseEnrollments.Any(e =>
                 e.UserId == CurrentUserId

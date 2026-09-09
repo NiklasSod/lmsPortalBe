@@ -665,4 +665,77 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
 
     Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
   }
+
+  [Fact]
+  public async Task GetUserAssignments_ReflectsSubmissionStatus()
+  {
+    var teacher = await CreateTeacherAsync("sub.astatus.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.astatus.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    // Not submitted yet -> no status/feedback/id.
+    var before = await SendAuthorizedAsync(HttpMethod.Get, "/api/assignments/mine", student.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+    var beforeList = await before.Content.ReadFromJsonAsync<List<StudentAssignmentDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(beforeList);
+    var notSubmitted = Assert.Single(beforeList);
+    Assert.Equal(assignmentId, notSubmitted.Id);
+    Assert.Null(notSubmitted.LatestSubmissionId);
+    Assert.Null(notSubmitted.LatestSubmissionStatus);
+    Assert.Equal(string.Empty, notSubmitted.LatestFeedback);
+
+    // Hand in -> HandedIn.
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "My answer.");
+    Assert.Equal(HttpStatusCode.Created, handIn.StatusCode);
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+
+    var pending = await SendAuthorizedAsync(HttpMethod.Get, "/api/assignments/mine", student.AccessToken);
+    var pendingList = await pending.Content.ReadFromJsonAsync<List<StudentAssignmentDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(pendingList);
+    var handedIn = Assert.Single(pendingList);
+    Assert.Equal(submission.Id, handedIn.LatestSubmissionId);
+    Assert.Equal("HandedIn", handedIn.LatestSubmissionStatus);
+
+    // Teacher approves -> Approved with feedback.
+    await GradeAsync(teacher.AccessToken, submission.Id, "Approved", "Great work!");
+
+    var after = await SendAuthorizedAsync(HttpMethod.Get, "/api/assignments/mine", student.AccessToken);
+    var afterList = await after.Content.ReadFromJsonAsync<List<StudentAssignmentDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(afterList);
+    var approved = Assert.Single(afterList);
+    Assert.Equal(submission.Id, approved.LatestSubmissionId);
+    Assert.Equal("Approved", approved.LatestSubmissionStatus);
+    Assert.Equal("Great work!", approved.LatestFeedback);
+  }
+
+  [Fact]
+  public async Task GetUserAssignments_ReflectsRevision()
+  {
+    var teacher = await CreateTeacherAsync("sub.revstatus.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.revstatus.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "First attempt.");
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+
+    await GradeAsync(teacher.AccessToken, submission.Id, "Revision", "Please add sources.");
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/assignments/mine", student.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    var list = await response.Content.ReadFromJsonAsync<List<StudentAssignmentDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(list);
+    var item = Assert.Single(list);
+    Assert.Equal("Revision", item.LatestSubmissionStatus);
+    Assert.Equal("Please add sources.", item.LatestFeedback);
+  }
 }

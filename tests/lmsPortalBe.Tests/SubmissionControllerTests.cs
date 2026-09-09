@@ -598,4 +598,71 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
     Assert.Equal("My work that must survive.", kept.Content);
     Assert.Null(kept.AssignmentId);
   }
+
+  [Fact]
+  public async Task GetPendingSubmissions_AsTeacher_ReturnsOnlyPending()
+  {
+    var teacher = await CreateTeacherAsync("sub.pendinglist.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+    var student = await CreateStudentAsync("sub.pendinglist.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "Please grade me.");
+    var pendingSubmission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(pendingSubmission);
+
+    // An already-approved submission must not appear as pending.
+    var assignment2 = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+    var student2 = await CreateStudentAsync("sub.pendinglist.student2@example.com");
+    await EnrollStudentAsync(student2.AccessToken, courseId);
+    var handIn2 = await HandInAsync(student2.AccessToken, assignment2, "Already graded.");
+    var graded = await handIn2.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(graded);
+    await GradeAsync(teacher.AccessToken, graded.Id, "Approved", null);
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/submissions/pending", teacher.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    var list = await response.Content.ReadFromJsonAsync<List<SubmissionDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(list);
+    var match = Assert.Single(list);
+    Assert.Equal(pendingSubmission.Id, match.Id);
+    Assert.Equal("HandedIn", match.Status);
+  }
+
+  [Fact]
+  public async Task GetPendingSubmissions_AsTeacher_ExcludesOtherCourses()
+  {
+    var teacherA = await CreateTeacherAsync("sub.pending.teacher.a@example.com");
+    var courseA = await CreateCourseAsync(teacherA.AccessToken);
+    var moduleA = await CreateModuleAsync(teacherA.AccessToken, courseA);
+    var assignmentA = await CreateAssignmentAsync(teacherA.AccessToken, moduleA);
+
+    var studentA = await CreateStudentAsync("sub.pending.student.a@example.com");
+    await EnrollStudentAsync(studentA.AccessToken, courseA);
+    var handInA = await HandInAsync(studentA.AccessToken, assignmentA, "A's pending submission.");
+    Assert.Equal(HttpStatusCode.Created, handInA.StatusCode);
+
+    // Teacher B teaches a different course and must not see teacher A's pending work.
+    var teacherB = await CreateTeacherAsync("sub.pending.teacher.b@example.com");
+    var courseB = await CreateCourseAsync(teacherB.AccessToken);
+    await CreateModuleAsync(teacherB.AccessToken, courseB);
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/submissions/pending", teacherB.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    var list = await response.Content.ReadFromJsonAsync<List<SubmissionDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(list);
+    Assert.Empty(list);
+  }
+
+  [Fact]
+  public async Task GetPendingSubmissions_AsStudent_ReturnsForbidden()
+  {
+    var student = await CreateStudentAsync("sub.pending.student.forbidden@example.com");
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/submissions/pending", student.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
 }

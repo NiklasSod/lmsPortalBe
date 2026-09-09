@@ -129,8 +129,7 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      if (!User.IsInRole("admin")
-          && !await IsCourseTeacherAsync(submission.Assignment.Module.CourseId))
+      if (!await CanGradeAsync(submission))
       {
         return Forbid();
       }
@@ -170,9 +169,7 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      if (!User.IsInRole("admin")
-          && submission.StudentId != CurrentUserId
-          && !await IsCourseTeacherAsync(submission.Assignment.Module.CourseId))
+      if (!await CanDeleteAsync(submission))
       {
         return Forbid();
       }
@@ -183,10 +180,42 @@ namespace lmsPortalBe.Controllers
       return NoContent();
     }
 
+    private async Task<bool> CanGradeAsync(Submission submission)
+    {
+      if (User.IsInRole("admin"))
+      {
+        return true;
+      }
+
+      var assignment = submission.Assignment;
+      if (assignment is null)
+      {
+        return false;
+      }
+
+      return await IsCourseTeacherAsync(assignment.Module.CourseId);
+    }
+
+    private async Task<bool> CanDeleteAsync(Submission submission)
+    {
+      if (User.IsInRole("admin") || submission.StudentId == CurrentUserId)
+      {
+        return true;
+      }
+
+      var assignment = submission.Assignment;
+      if (assignment is null)
+      {
+        return false;
+      }
+
+      return await IsCourseTeacherAsync(assignment.Module.CourseId);
+    }
+
     private async Task<Submission?> FindSubmissionAsync(int id) =>
         await _context.Submissions
             .Include(s => s.Assignment)
-            .ThenInclude(a => a.Module)
+            .ThenInclude(a => a!.Module)
             .FirstOrDefaultAsync(s => s.Id == id);
 
     private async Task<bool> CanAccessAsync(Submission submission)
@@ -201,7 +230,15 @@ namespace lmsPortalBe.Controllers
         return true;
       }
 
-      return await IsCourseTeacherAsync(submission.Assignment.Module.CourseId);
+      // An orphaned submission (its assignment was deleted) has no assignment
+      // left to derive a course from, so only the owner or an admin may access it.
+      var assignment = submission.Assignment;
+      if (assignment is null)
+      {
+        return false;
+      }
+
+      return await IsCourseTeacherAsync(assignment.Module.CourseId);
     }
   }
 }

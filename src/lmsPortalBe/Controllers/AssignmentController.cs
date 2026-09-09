@@ -12,7 +12,7 @@ namespace lmsPortalBe.Controllers
   [Route("api/[controller]")]
   public class AssignmentsController(
       ILmsPortalContext context,
-      IMapper mapper) 
+      IMapper mapper)
       : CoursePortalControllerBase(context, mapper)
   {
 
@@ -221,6 +221,7 @@ namespace lmsPortalBe.Controllers
     {
       var assignment = await _context.Assignments
           .Include(c => c.Module)
+          .Include(c => c.Submissions)
           .FirstOrDefaultAsync(c => c.Id == id);
       if (assignment is null)
       {

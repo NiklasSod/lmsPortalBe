@@ -37,6 +37,31 @@ namespace lmsPortalBe.Controllers
       return Ok(submissions.Select(_mapper.Map<SubmissionDto>));
     }
 
+    [HttpGet("pending")]
+    [Authorize(Roles = "teacher,admin")]
+    public async Task<IActionResult> GetPendingSubmissions()
+    {
+      IQueryable<Submission> query = _context.Submissions
+          .Where(s => s.Status == AssignmentStatus.HandedIn);
+
+      if (!User.IsInRole("admin"))
+      {
+        // A teacher only sees pending submissions for courses they teach.
+        query = query.Where(s => s.Assignment != null
+            && _context.CourseEnrollments.Any(e =>
+                e.UserId == CurrentUserId
+                && e.Role == CourseRole.Teacher
+                && e.CourseId == s.Assignment!.Module.CourseId));
+      }
+
+      var submissions = await query
+          .OrderByDescending(s => s.HandinDate)
+          .ThenByDescending(s => s.Id)
+          .ToListAsync();
+
+      return Ok(submissions.Select(_mapper.Map<SubmissionDto>));
+    }
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetSubmission(int id)
     {

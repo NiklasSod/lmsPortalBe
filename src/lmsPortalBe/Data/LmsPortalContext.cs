@@ -107,19 +107,23 @@ namespace lmsPortalBe.Data
                 entity.ToTable("lmsResource");
                 entity.HasOne(e => e.Creator)
                     .WithMany(c => c.Resources)
-                    .HasForeignKey(e => e.CreatorId);
-                
+                    .HasForeignKey(e => e.CreatorId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
                 entity.HasOne(e => e.Course)
                     .WithMany(c => c.Resources)
-                    .HasForeignKey(e => e.CourseId);
-                
+                    .HasForeignKey(e => e.CourseId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
                 entity.HasOne(e => e.Module)
                     .WithMany(c => c.Resources)
-                    .HasForeignKey(e => e.ModuleId);
-                
+                    .HasForeignKey(e => e.ModuleId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
                 entity.HasOne(e => e.Activity)
                     .WithMany(c => c.Resources)
-                    .HasForeignKey(e => e.ActivityId);
+                    .HasForeignKey(e => e.ActivityId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<Assignment>(entity =>

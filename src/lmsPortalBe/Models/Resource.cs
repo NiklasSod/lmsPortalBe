@@ -8,7 +8,8 @@ namespace lmsPortalBe.Models
         public ApplicationUser Creator { get; set; } = null!;
         public string DisplayName { get; set; } = string.Empty;
         public string Url { get; set; } = string.Empty;
-        public DateTime? UploadDate { get; set; } = null;
+        public DateTime LastEditDate { get; set; }
+        public DateTime UploadDate { get; set; }
         public int? CourseId { get; set; }
         public CourseModel? Course { get; set; }
         public int? ActivityId { get; set; } 

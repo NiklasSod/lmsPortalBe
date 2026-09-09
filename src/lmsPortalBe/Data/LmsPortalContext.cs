@@ -15,6 +15,7 @@ namespace lmsPortalBe.Data
         public DbSet<Assignment> Assignments { get; set; } = null!;
         public DbSet<UserProfile> UserProfiles { get; set; } = null!;
         public DbSet<Submission> Submissions { get; set; } = null!;
+        public DbSet<Resource> Resources { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -101,7 +102,13 @@ namespace lmsPortalBe.Data
                 entity.ToTable("lmsActivity");
             });
 
-
+            builder.Entity<Resource>(entity =>
+            {
+                entity.ToTable("lmsResource");
+                entity.HasOne(e => e.Creator)
+                    .WithMany(e => e.Resources)
+                    .HasForeignKey();
+            });
 
             builder.Entity<Assignment>(entity =>
             {
@@ -129,7 +136,7 @@ namespace lmsPortalBe.Data
                 entity.HasOne(e => e.Assignment)
                     .WithMany(u => u.Submissions)
                     .HasForeignKey(e => e.AssignmentId)
-                    .OnDelete(DeleteBehavior.ClientSetNull); // Students may wish to keep their work even if an assignment is deleted
+                    .OnDelete(DeleteBehavior.ClientSetNull);
             });
         }
     }

@@ -11,5 +11,6 @@ namespace lmsPortalBe.Models
         public string Feedback { get; set; } = string.Empty;
         public DateTime? HandinDate { get; set; } = null;
         public AssignmentStatus Status { get; set; } = AssignmentStatus.Unsent;
+        public ICollection<Resource> Resources { get; set; } = [];
     }
 }

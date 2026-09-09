@@ -9,6 +9,5 @@ namespace lmsPortalBe.Models
         public string Description { get; set; } = string.Empty;
         public DateTime DueDate { get; set; } = DateTime.UtcNow;
         public ICollection<Submission> Submissions { get; set; } = [];
-        public ICollection<Resource> Resources { get; set; } = [];
     }
 }

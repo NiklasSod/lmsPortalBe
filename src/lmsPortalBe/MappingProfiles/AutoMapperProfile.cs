@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using lmsPortalBe.DTOs.Auth;
 using lmsPortalBe.DTOs.Course;
+using lmsPortalBe.DTOs.Resource;
 using lmsPortalBe.DTOs.UserProfile;
 using lmsPortalBe.Models;
 
@@ -28,6 +29,7 @@ namespace lmsPortalBe.MappingProfiles
                 .ForMember(dest => dest.LatestSubmissionId, opt => opt.Ignore())
                 .ForMember(dest => dest.LatestSubmissionStatus, opt => opt.Ignore())
                 .ForMember(dest => dest.LatestFeedback, opt => opt.Ignore());
+            CreateMap<Resource, ResourceDto>();
             CreateMap<Submission, SubmissionDto>()
                 .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()));
             CreateMap<UserProfile, UserProfileDto>();

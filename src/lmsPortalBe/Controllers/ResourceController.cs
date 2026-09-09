@@ -4,33 +4,31 @@ using AutoMapper;
 using lmsPortalBe.Data;
 using lmsPortalBe.DTOs.Course;
 using lmsPortalBe.DTOs.Resource;
-using lmsPortalBe.Migrations;
 using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace lmsPortalBe.Controllers
 {
-  
+
   [Route("api/[controller]")]
   public class ResourcesController(
       ILmsPortalContext context,
       IMapper mapper,
-      UserManager<ApplicationUser> _userManager) 
+      UserManager<ApplicationUser> _userManager)
       : CoursePortalControllerBase(context, mapper)
   {
 
     private int GetResourceCourseId(Resource resource) =>
-      resource.CourseId 
-        ?? resource.Activity?.Module.CourseId
+      resource.CourseId
+        ?? resource.Activity?.Module?.CourseId
         ?? resource.Module?.CourseId
         ?? throw new KeyNotFoundException("Resource has no parent course.");
 
     [HttpGet]
-    [Authorize("admin")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> GetAllResources()
     {
       var resources = await _context.Resources
@@ -49,9 +47,11 @@ namespace lmsPortalBe.Controllers
           .ToListAsync();
 
       var resources = await _context.Resources
-          .Include(r => r.Activity)
-          .Include(r => r.Module)
-          .Where(r => enrolledCourseIds.Contains(GetResourceCourseId(r)))
+          .Where(r =>
+              (r.CourseId != null && enrolledCourseIds.Contains(r.CourseId.Value))
+              || (r.Module != null && enrolledCourseIds.Contains(r.Module.CourseId))
+              || (r.Activity != null && enrolledCourseIds.Contains(r.Activity.Module.CourseId)))
+          .OrderBy(r => r.UploadDate)
           .ToListAsync();
 
       return Ok(resources.Select(_mapper.Map<ResourceDto>));
@@ -62,6 +62,7 @@ namespace lmsPortalBe.Controllers
     {
       var resource = await _context.Resources
           .Include(r => r.Activity)
+              .ThenInclude(a => a!.Module)
           .Include(r => r.Module)
           .FirstOrDefaultAsync(r => r.Id == id);
 
@@ -70,9 +71,9 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      if (!User.IsInRole("admin") 
+      if (!User.IsInRole("admin")
           && resource.CreatorId != CurrentUserId
-          && await IsEnrolledAsync(GetResourceCourseId(resource)))
+          && !await IsEnrolledAsync(GetResourceCourseId(resource)))
       {
         return Forbid();
       }
@@ -90,20 +91,26 @@ namespace lmsPortalBe.Controllers
         return NotFound("User not found.");
       }
 
-      if (dto.ActivityId is not null ^ dto.CourseId is not null ^ dto.ModuleId is not null)
+      var locationCount = (dto.ActivityId is not null ? 1 : 0)
+          + (dto.CourseId is not null ? 1 : 0)
+          + (dto.ModuleId is not null ? 1 : 0);
+
+      if (locationCount != 1)
       {
         return BadRequest("Must be assigned to exactly one activity, course, or module.");
       }
 
-      var activity = dto.ActivityId is not null ? 
-        await _context.Activities.FirstOrDefaultAsync(a => a.Id == dto.ActivityId)
+      var activity = dto.ActivityId is not null ?
+        await _context.Activities
+            .Include(a => a.Module)
+            .FirstOrDefaultAsync(a => a.Id == dto.ActivityId)
         : null;
-      
-      var course = dto.CourseId is not null ? 
+
+      var course = dto.CourseId is not null ?
         await _context.Courses.FirstOrDefaultAsync(c => c.Id == dto.CourseId)
         : null;
 
-      var module = dto.ModuleId is not null ? 
+      var module = dto.ModuleId is not null ?
         await _context.CourseModules.FirstOrDefaultAsync(m => m.Id == dto.ModuleId)
         : null;
 
@@ -122,7 +129,7 @@ namespace lmsPortalBe.Controllers
         LastEditDate = DateTime.UtcNow,
       };
 
-      if (!User.IsInRole("admin") 
+      if (!User.IsInRole("admin")
           && !await IsCourseTeacherAsync(GetResourceCourseId(resource)))
       {
         return Forbid();
@@ -134,7 +141,7 @@ namespace lmsPortalBe.Controllers
       return CreatedAtAction(nameof(GetResource), new { id = resource.Id }, _mapper.Map<ResourceDto>(resource));
     }
 
-    [HttpPost("api/activity/{activityId:int}/resources")]
+    [HttpPost("/api/activity/{activityId:int}/resources")]
     [Authorize]
     public async Task<IActionResult> CreateResourceForActivity(int activityId, CreateResourceRequestDto dto)
     {
@@ -142,7 +149,7 @@ namespace lmsPortalBe.Controllers
       return await CreateResource(dto);
     }
 
-    [HttpPost("api/courses/{courseId:int}/resources")]
+    [HttpPost("/api/courses/{courseId:int}/resources")]
     [Authorize]
     public async Task<IActionResult> CreateResourceForCourse(int courseId, CreateResourceRequestDto dto)
     {
@@ -150,7 +157,7 @@ namespace lmsPortalBe.Controllers
       return await CreateResource(dto);
     }
 
-    [HttpPost("api/modules/{moduleId:int}/resources")]
+    [HttpPost("/api/modules/{moduleId:int}/resources")]
     [Authorize]
     public async Task<IActionResult> CreateResourceForModule(int moduleId, CreateResourceRequestDto dto)
     {
@@ -169,23 +176,31 @@ namespace lmsPortalBe.Controllers
       }
 
 
-      if (!User.IsInRole("admin") 
+      if (!User.IsInRole("admin")
           && resource.CreatorId != CurrentUserId)
       {
         return Forbid();
       }
 
-      if (!User.IsInRole("admin")
-          && (dto.ActivityId is not null 
-              || dto.CourseId is not null
-              || dto.ModuleId is not null))
+      var hasLocationChange = dto.ActivityId is not null
+          || dto.CourseId is not null
+          || dto.ModuleId is not null;
+
+      if (!User.IsInRole("admin") && hasLocationChange)
       {
         return Forbid("Only admin may move resource to new location.");
       }
 
-      if (!(dto.ActivityId is not null ^ dto.CourseId is not null ^ dto.ModuleId is not null))
+      if (hasLocationChange)
       {
-        return BadRequest("Can only belong to a course, module, or activity.");
+        var locationCount = (dto.ActivityId is not null ? 1 : 0)
+            + (dto.CourseId is not null ? 1 : 0)
+            + (dto.ModuleId is not null ? 1 : 0);
+
+        if (locationCount != 1)
+        {
+          return BadRequest("Can only belong to a course, module, or activity.");
+        }
       }
 
       if (dto.ActivityId is not null)
@@ -195,6 +210,10 @@ namespace lmsPortalBe.Controllers
         {
           resource.Activity = newActivity;
           resource.ActivityId = dto.ActivityId;
+          resource.Course = null;
+          resource.CourseId = null;
+          resource.Module = null;
+          resource.ModuleId = null;
         }
       }
 
@@ -205,6 +224,10 @@ namespace lmsPortalBe.Controllers
         {
           resource.Course = newCourse;
           resource.CourseId = dto.CourseId;
+          resource.Activity = null;
+          resource.ActivityId = null;
+          resource.Module = null;
+          resource.ModuleId = null;
         }
       }
 
@@ -215,6 +238,10 @@ namespace lmsPortalBe.Controllers
         {
           resource.Module = newModule;
           resource.ModuleId = dto.ModuleId;
+          resource.Activity = null;
+          resource.ActivityId = null;
+          resource.Course = null;
+          resource.CourseId = null;
         }
       }
 
@@ -227,7 +254,7 @@ namespace lmsPortalBe.Controllers
       return Ok(_mapper.Map<ResourceDto>(resource));
     }
 
-    
+
 
     [HttpDelete("{id:int}")]
     [Authorize]
@@ -239,7 +266,7 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      if (!User.IsInRole("admin") 
+      if (!User.IsInRole("admin")
           && resource.CreatorId != CurrentUserId)
       {
         return Forbid();

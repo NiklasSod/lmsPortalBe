@@ -55,7 +55,9 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      if (!User.IsInRole("admin") && !await IsEnrolledAsync(submission.Assignment.Module.CourseId))
+      if (!User.IsInRole("admin") 
+          && !await IsCourseTeacherAsync(submission.Assignment.Module.CourseId)
+          && submission.StudentId != CurrentUserId)
       {
         return Forbid();
       }
@@ -74,7 +76,8 @@ namespace lmsPortalBe.Controllers
         return NotFound();
       }
 
-      if (!User.IsInRole("admin") && !await IsEnrolledAsync(assignment.Module.CourseId))
+      if (!User.IsInRole("admin") 
+          && !await IsCourseTeacherAsync(assignment.Module.CourseId))
       {
         return Forbid();
       }
@@ -88,7 +91,6 @@ namespace lmsPortalBe.Controllers
     }
 
     [HttpPost]
-    [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> CreateSubmission(CreateSubmissionRequestDto dto)
     {
 
@@ -101,9 +103,17 @@ namespace lmsPortalBe.Controllers
         return NotFound("Cannot find module to add assignment to.");
       }
 
-      if (!User.IsInRole("admin") && !await IsCourseTeacherAsync(assignment.Module.CourseId))
+      if (!User.IsInRole("admin") 
+          && !await IsEnrolledAsync(assignment.Module.CourseId))
       {
         return Forbid();
+      }
+
+      if (dto.Feedback is not null 
+          && !User.IsInRole("admin")
+          && !await IsCourseTeacherAsync(assignment.Module.CourseId))
+      {
+        return Forbid("No permission to include feedback");
       }
 
       var submission = new Submission
@@ -124,8 +134,7 @@ namespace lmsPortalBe.Controllers
 
 
     [HttpPost("/api/assignments/{id:int}")]
-    [Authorize(Roles = "teacher,admin")]
-    public async Task<IActionResult> CreateAssignmentInModule(int id, CreateSubmissionRequestDto dto)
+    public async Task<IActionResult> CreateSubmissionInAssignment(int id, CreateSubmissionRequestDto dto)
     {
       if (dto.AssignmentId != id)
       {
@@ -138,14 +147,17 @@ namespace lmsPortalBe.Controllers
     [Authorize(Roles = "teacher,admin")]
     public async Task<IActionResult> UpdateSubmission(int id, UpdateSubmissionRequestDto dto)
     {
-      var submission = await _context.Submissions.FirstOrDefaultAsync(s => s.Id == id);
+      var submission = await _context.Submissions
+        .Include(s => s.Assignment)
+        .ThenInclude(a => a.Module)
+        .FirstOrDefaultAsync(s => s.Id == id);
       if (submission is null)
       {
         return NotFound();
       }
 
       if (!User.IsInRole("admin") 
-            && !User.IsInRole("teacher") 
+            && !await IsCourseTeacherAsync(submission.Assignment.Module.CourseId) 
             && submission.StudentId != CurrentUserId)
       {
         return Forbid();
@@ -190,9 +202,16 @@ namespace lmsPortalBe.Controllers
       {
         
         if (!User.IsInRole("admin") 
-            && !User.IsInRole("teacher"))
+            && !await IsCourseTeacherAsync(submission.Assignment.Module.CourseId))
         {
             return Forbid("No permission to send feedback.");
+        }
+
+        if (dto.Status is null 
+          && submission.Status != AssignmentStatus.Revision
+          && submission.Status != AssignmentStatus.Approved)
+        {
+          return BadRequest("Must update status when supplying feedback.");
         }
 
         submission.Feedback = dto.Feedback;
@@ -210,30 +229,58 @@ namespace lmsPortalBe.Controllers
 
       submission.Content = dto.Content ?? submission.Content;
 
+      if (dto.Status is not null)
+      {
+        if(!Enum.TryParse<AssignmentStatus>(dto.Status, ignoreCase: true, out var status))
+        {
+          return BadRequest("Cannot recognize submission status.");
+        }
+
+        switch (status)
+        {
+          case AssignmentStatus.Approved | AssignmentStatus.Revision:
+            if (!User.IsInRole("admin") 
+                && !await IsCourseTeacherAsync(submission.Assignment.Module.CourseId))
+            {
+              return Forbid("No permission to send feedback.");
+            }
+
+            if (dto.Feedback is null && submission.Feedback is null)
+            {
+              return BadRequest("Must supply feedback when returning assignment.");
+            }
+          break;
+          case AssignmentStatus.HandedIn | AssignmentStatus.Unsent:
+            if (!User.IsInRole("admin")  
+                && submission.StudentId != CurrentUserId)
+            {
+              return Forbid();
+            }
+            break;
+        }
+
+        submission.Status = status;
+      }
+
+      
+
       await _context.SaveChangesAsync();
 
       return Ok(_mapper.Map<SubmissionDto>(submission));
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "teacher,admin")]
+    [Authorize("admin")]
     public async Task<IActionResult> DeleteSubmission(int id)
     {
       var submission = await _context.Submissions
           .Include(s => s.Assignment)
           .ThenInclude(a => a.Module)
           .FirstOrDefaultAsync(s => s.Id == id);
-          
+
       if (submission is null)
       {
         return NotFound();
-      }
-
-      if (!User.IsInRole("admin") 
-          && !await IsCourseTeacherAsync(submission.Assignment.Module.CourseId)
-          && submission.StudentId != CurrentUserId)
-      {
-        return Forbid();
       }
 
       _context.Submissions.Remove(submission);

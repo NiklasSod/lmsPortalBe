@@ -125,17 +125,11 @@ namespace lmsPortalBe.Data
             builder.Entity<Assignment>(entity =>
             {
                 entity.ToTable("lmsAssignment");
-
-                entity.HasMany(e => e.Submissions)
-                    .WithOne(a => a.Assignment)
-                    .HasForeignKey(e => e.AssignmentId)
-                    .OnDelete(DeleteBehavior.Cascade); // TODO: verify correct delete behavior
             });
 
             builder.Entity<Submission>(entity =>
             {
                 entity.ToTable("lmsSubmission");
-
 
                 entity.HasIndex(e => new { e.StudentId, e.AssignmentId });
 
@@ -144,11 +138,12 @@ namespace lmsPortalBe.Data
                     .HasForeignKey(e => e.StudentId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-
+                // A student keeps their submissions (history of handed-in work)
+                // when the assignment is deleted; the link is nulled.
                 entity.HasOne(e => e.Assignment)
                     .WithMany(u => u.Submissions)
                     .HasForeignKey(e => e.AssignmentId)
-                    .OnDelete(DeleteBehavior.ClientSetNull);
+                    .OnDelete(DeleteBehavior.SetNull);
             });
         }
     }

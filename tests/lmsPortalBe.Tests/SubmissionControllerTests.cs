@@ -1,27 +1,26 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Reflection;
 using lmsPortalBe.DTOs.Admin;
 using lmsPortalBe.DTOs.Auth;
 using lmsPortalBe.DTOs.Course;
-using lmsPortalBe.Models;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace lmsPortalBe.Tests;
 
+/// <summary>
+/// Integration tests for the submission workflow: a student hands in work for
+/// an assignment, the course teacher grades it (Approved / Revision), and the
+/// submission can go back and forth several times. Each hand-in creates a new
+/// history row.
+/// </summary>
 public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebApplicationFactory>
 {
   public SubmissionsControllerTests(TestWebApplicationFactory factory) : base(factory)
   {
   }
 
-  private static readonly DateTime Jan1 = new(2026, 1, 1);
-  private static readonly DateTime Jan31 = new(2026, 1, 31);
-  private static readonly DateTime Jan15 = new(2026, 1, 15);
-  private static readonly DateTime Feb15 = new(2026, 2, 15);
-  private static readonly DateTime Feb1 = new(2026, 2, 1);
-  private static readonly DateTime Feb28 = new(2026, 2, 28);
+  private static readonly DateTime Start = new(2027, 3, 1);
+  private static readonly DateTime End = new(2027, 3, 31);
+  private static readonly DateTime Due = new(2027, 3, 20);
 
   private async Task<AuthResponseDto> CreateTeacherAsync(string email)
   {
@@ -39,7 +38,13 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
     return await LoginAsync(email, "Passw0rd1");
   }
 
-  private async Task<int> CreateCourseAsync(string teacherToken, DateTime start, DateTime end)
+  private async Task<AuthResponseDto> CreateStudentAsync(string email)
+  {
+    // Registration automatically assigns the "student" role.
+    return await RegisterAsync(email);
+  }
+
+  private async Task<int> CreateCourseAsync(string teacherToken)
   {
     var response = await SendAuthorizedAsync(
         HttpMethod.Post,
@@ -47,10 +52,10 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
         teacherToken,
         new CreateCourseRequestDto
         {
-          Name = $"Course {start:yyyy-MM-dd}",
+          Name = "Submission test course",
           Description = "Test course",
-          StartDate = start,
-          EndDate = end
+          StartDate = Start,
+          EndDate = End
         });
 
     Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -60,7 +65,7 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
     return body.Id;
   }
 
-  private async Task<int> CreateModuleAsync(string teacherToken, int courseId, DateTime start, DateTime end)
+  private async Task<int> CreateModuleAsync(string teacherToken, int courseId)
   {
     var response = await SendAuthorizedAsync(
         HttpMethod.Post,
@@ -69,10 +74,10 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
         new CreateCourseModuleRequestDto
         {
           CourseId = courseId,
-          Name = $"Course {start:yyyy-MM-dd}",
-          Description = "Test course",
-          StartDate = start,
-          EndDate = end
+          Name = "Submission test module",
+          Description = "Test module",
+          StartDate = Start,
+          EndDate = End
         });
 
     Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -82,7 +87,7 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
     return body.Id;
   }
 
-  private async Task<int> CreateAssignmentAsync(string teacherToken, int moduleId, DateTime start)
+  private async Task<int> CreateAssignmentAsync(string teacherToken, int moduleId)
   {
     var response = await SendAuthorizedAsync(
         HttpMethod.Post,
@@ -91,9 +96,9 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
         new CreateAssignmentRequestDto
         {
           ModuleId = moduleId,
-          Name = $"Course {start:yyyy-MM-dd}",
-          Description = "Test course",
-          DueDate = start,
+          Name = "Essay",
+          Description = "Write an essay",
+          DueDate = Due
         });
 
     Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -103,447 +108,634 @@ public class SubmissionsControllerTests : ApiTestBase, IClassFixture<TestWebAppl
     return body.Id;
   }
 
-  private async Task<string> GetUserIdAsync(string email)
-  {
-    using var scope = Factory.Services.CreateScope();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    var user = await userManager.FindByEmailAsync(email);
-    Assert.NotNull(user);
-    return user.Id;
-  }
-
-
-// TODO: does not create anything at the moment because of bad request
-  private async Task<int> CreateSubmissionAsync(string studentToken, string studentId, int assignmentId, DateTime? handinDate)
+  private async Task EnrollStudentAsync(string studentToken, int courseId)
   {
     var response = await SendAuthorizedAsync(
         HttpMethod.Post,
-        "/api/submissions",
+        "/api/courses/enroll",
         studentToken,
-        new CreateSubmissionRequestDto
-        {
-          StudentId = studentId,
-          AssignmentId = assignmentId,
-          Content = "Test content",
-          HandinDate = handinDate,
-        });
+        new EnrollRequestDto { CourseId = courseId });
+    response.EnsureSuccessStatusCode();
+  }
 
-    Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+  private async Task<HttpResponseMessage> HandInAsync(string studentToken, int assignmentId, string content)
+      => await SendAuthorizedAsync(
+          HttpMethod.Post,
+          "/api/submissions",
+          studentToken,
+          new CreateSubmissionRequestDto { AssignmentId = assignmentId, Content = content });
 
-    var body = await response.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
-    Assert.NotNull(body);
-    return body.Id;
+  private async Task<SubmissionDto?> GradeAsync(string teacherToken, int submissionId, string status, string? feedback)
+  {
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/submissions/{submissionId}",
+        teacherToken,
+        new UpdateSubmissionRequestDto { Status = status, Feedback = feedback });
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    return await response.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
   }
 
   [Fact]
-  public async Task CreateSubmission_AsTeacher_ReturnsForbidden()
+  public async Task HandInSubmission_AsEnrolledStudent_ReturnsCreatedHandedIn()
   {
-    var teacher = await CreateTeacherAsync("submission.teacher.create.module@example.com");
-    var teacherId = await GetUserIdAsync("submission.teacher.create.module@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan15);
+    var teacher = await CreateTeacherAsync("sub.enrolled.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
 
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Post,
-        "/api/submissions",
-        teacher.AccessToken,
-        new CreateSubmissionRequestDto
-        {
-          StudentId = teacherId,
-          AssignmentId = assignmentId,
-          Content = "Example content from teacher."
-        });
+    var student = await CreateStudentAsync("sub.enrolled.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
 
-    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-  }
-
-  [Fact]
-  public async Task CreateSubmission_AsStudent_ReturnsCreatedWithId()
-  {
-    var student = await RegisterAsync("create.submission.student@example.com");
-    var studentId = await GetUserIdAsync("create.submission.student");
-    // TODO: enroll student here
-    var teacher = await CreateTeacherAsync("course.teacher.not.forbidden@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan15);
-
-
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Post,
-        "/api/assignments",
-        student.AccessToken,
-        new CreateSubmissionRequestDto
-        {
-          AssignmentId = assignmentId,
-          StudentId = studentId,
-          Content = "Student's finest work."
-        });
+    var response = await HandInAsync(student.AccessToken, assignmentId, "My first draft answer.");
 
     Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
     var body = await response.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
     Assert.NotNull(body);
     Assert.NotEqual(0, body.Id);
-    Assert.Equal("Student's finest work.", body.Content);
+    Assert.Equal(assignmentId, body.AssignmentId!.Value);
+    Assert.Equal("My first draft answer.", body.Content);
+    Assert.Equal("HandedIn", body.Status);
+    Assert.NotEmpty(body.StudentId);
   }
 
   [Fact]
-  public async Task CreateSubmission_AsNonEnrolledStudent_ReturnsForbidden()
+  public async Task HandInSubmission_WithNonexistentAssignment_ReturnsNotFound()
   {
-    var student = await RegisterAsync("create.submission.student@example.com");
-    var studentId = await GetUserIdAsync("create.submission.student");
-    var teacher = await CreateTeacherAsync("course.teacher.not.forbidden@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan15);
+    var student = await CreateStudentAsync("sub.noassignment.student@example.com");
 
+    var response = await HandInAsync(student.AccessToken, 999999, "Answer to nothing.");
 
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Post,
-        "/api/assignments",
-        student.AccessToken,
-        new CreateSubmissionRequestDto
-        {
-          AssignmentId = assignmentId,
-          StudentId = studentId,
-          Content = "Student's finest work."
-        });
+    Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task HandInSubmission_WithZeroAssignmentId_ReturnsBadRequest()
+  {
+    var student = await CreateStudentAsync("sub.zeroassignment.student@example.com");
+
+    var response = await HandInAsync(student.AccessToken, 0, "Answer.");
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task HandInSubmission_AsTeacher_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("sub.teacher.handin.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    // Even though a teacher still holds the "student" role from registration,
+    // they are not enrolled as a student and must not be able to hand in.
+    var response = await HandInAsync(teacher.AccessToken, assignmentId, "Teacher's own answer.");
 
     Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
   }
 
-  
+  [Fact]
+  public async Task HandInSubmission_WhileAlreadyHandedIn_ReturnsConflict()
+  {
+    var teacher = await CreateTeacherAsync("sub.pending.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.pending.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var first = await HandInAsync(student.AccessToken, assignmentId, "First hand-in.");
+    Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+
+    // Not allowed to hand in again before the teacher has graded.
+    var second = await HandInAsync(student.AccessToken, assignmentId, "Second hand-in while pending.");
+    Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+  }
 
   [Fact]
-  public async Task GetAllAssignment_AsAdmin_ReturnsAllAssignment()
+  public async Task GradeSubmission_StaleSubmission_ReturnsBadRequest()
   {
-    var teacherA = await CreateTeacherAsync("course.teacher.list.a@example.com");
-    var teacherB = await CreateTeacherAsync("course.teacher.list.b@example.com");
+    var teacher = await CreateTeacherAsync("sub.stale.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
 
-    var courseAId = await CreateCourseAsync(teacherA.AccessToken, Jan1, Jan31);
-    var moduleAId = await CreateModuleAsync(teacherA.AccessToken, courseAId, Jan1, Jan31);
-    var assignmentAId = await CreateAssignmentAsync(teacherA.AccessToken, moduleAId, Jan31);
+    var student = await CreateStudentAsync("sub.stale.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
 
-    var courseBId = await CreateCourseAsync(teacherB.AccessToken, Jan1, Jan31);
-    var moduleBId = await CreateModuleAsync(teacherB.AccessToken, courseBId, Jan1, Jan31);
-    var assignmentBId = await CreateAssignmentAsync(teacherB.AccessToken, moduleBId, Jan31);
+    var first = await HandInAsync(student.AccessToken, assignmentId, "Draft.");
+    var firstBody = await first.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(firstBody);
 
+    // Teacher sends it back for revision.
+    var revision = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/submissions/{firstBody.Id}",
+        teacher.AccessToken,
+        new UpdateSubmissionRequestDto { Status = "Revision" });
+    Assert.Equal(HttpStatusCode.OK, revision.StatusCode);
+
+    // Student hands in again -> the new row is now the latest.
+    var second = await HandInAsync(student.AccessToken, assignmentId, "Revised.");
+    Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+    var secondBody = await second.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(secondBody);
+
+    // Grading the older row is not allowed.
+    var staleGrade = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/submissions/{firstBody.Id}",
+        teacher.AccessToken,
+        new UpdateSubmissionRequestDto { Status = "Approved" });
+    Assert.Equal(HttpStatusCode.BadRequest, staleGrade.StatusCode);
+  }
+
+  [Fact]
+  public async Task HandInSubmission_UnenrolledStudent_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("sub.unenrolled.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    // Registered student but never enrolled in the course.
+    var student = await CreateStudentAsync("sub.unenrolled.student@example.com");
+
+    var response = await HandInAsync(student.AccessToken, assignmentId, "Sneaky answer.");
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task HandInSubmission_AsAdmin_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("sub.admin.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    // Admins are not in the "student" role, so they cannot hand in work.
     var admin = await LoginAsync("admin@example.com", "AdminPass1");
 
     var response = await SendAuthorizedAsync(
-        HttpMethod.Get,
-        "/api/assignments",
-        admin.AccessToken);
-
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-    var assignments = await response.Content.ReadFromJsonAsync<List<AssignmentDto>>(TestContext.Current.CancellationToken);
-    Assert.NotNull(assignments);
-    Assert.Contains(assignments, a => a.Id == assignmentAId);
-    Assert.Contains(assignments, a => a.Id == assignmentBId);
-  }
-
-  [Fact]
-  public async Task GetAllAssignments_AsTeacher_ReturnsForbidden()
-  {
-    var teacher = await CreateTeacherAsync("course.teacher.list.teacher@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
-    await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan31);
-
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Get,
-        "/api/assignments",
-        teacher.AccessToken);
+        HttpMethod.Post,
+        "/api/submissions",
+        admin.AccessToken,
+        new CreateSubmissionRequestDto { AssignmentId = assignmentId, Content = "Admin answer." });
 
     Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
   }
 
   [Fact]
-  public async Task CreateAssignment_WithDueDateBeforeModuleStart_ReturnsBadRequest()
+  public async Task HandInSubmission_AfterApproved_ReturnsConflict()
   {
-    var teacher = await CreateTeacherAsync("course.teacher.wrong.dates@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan15, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan15, Jan31);
+    var teacher = await CreateTeacherAsync("sub.conflict.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
 
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Post,
-        "/api/assignments",
-        teacher.AccessToken,
-        new CreateAssignmentRequestDto
-        {
-          ModuleId = moduleId,
-          Name = "Bad dates",
-          Description = "Invalid",
-          DueDate = Jan1
-        });
+    var student = await CreateStudentAsync("sub.conflict.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
 
-    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "First submission.");
+    Assert.Equal(HttpStatusCode.Created, handIn.StatusCode);
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+
+    await GradeAsync(teacher.AccessToken, submission.Id, "Approved", "Accepted, well done!");
+
+    var secondHandIn = await HandInAsync(student.AccessToken, assignmentId, "A second attempt after approval.");
+    Assert.Equal(HttpStatusCode.Conflict, secondHandIn.StatusCode);
   }
 
   [Fact]
-  public async Task CreateAssignment_WithDueDateAfterModuleEnd_ReturnsBadRequest()
+  public async Task RevisionThenResubmit_CreatesHistoryRows()
   {
-    var teacher = await CreateTeacherAsync("course.teacher.wrong.dates.again@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan15);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan15);
+    var teacher = await CreateTeacherAsync("sub.revision.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
 
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Post,
-        "/api/assignments",
-        teacher.AccessToken,
-        new CreateAssignmentRequestDto
-        {
-          ModuleId = moduleId,
-          Name = "Bad dates",
-          Description = "Invalid",
-          DueDate = Jan31
-        });
+    var student = await CreateStudentAsync("sub.revision.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
 
-    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-  }
+    var first = await HandInAsync(student.AccessToken, assignmentId, "Draft attempt.");
+    Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+    var firstBody = await first.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(firstBody);
 
-  [Fact]
-  public async Task DeleteAssignment_AsCreator_ReturnsNoContent()
-  {
-    var teacher = await CreateTeacherAsync("course.teacher.delete@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan31);
+    // Teacher returns it for revision.
+    var graded = await GradeAsync(teacher.AccessToken, firstBody.Id, "Revision", "Needs more sources.");
+    Assert.NotNull(graded);
+    Assert.Equal("Revision", graded.Status);
 
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Delete,
-        $"/api/assignments/{assignmentId}",
+    // Student hands in again -> a new history row, back to HandedIn.
+    var second = await HandInAsync(student.AccessToken, assignmentId, "Improved attempt.");
+    Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+    var secondBody = await second.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(secondBody);
+    Assert.NotEqual(firstBody.Id, secondBody.Id);
+    Assert.Equal("HandedIn", secondBody.Status);
+
+    // The teacher can see both rows for the assignment.
+    var listResponse = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/assignments/{assignmentId}/submissions",
         teacher.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+    var list = await listResponse.Content.ReadFromJsonAsync<List<SubmissionDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(list);
+    Assert.Equal(2, list.Count);
+    Assert.Contains(list, s => s.Id == firstBody.Id && s.Status == "Revision");
+    Assert.Contains(list, s => s.Id == secondBody.Id && s.Status == "HandedIn");
+  }
 
-    Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+  [Fact]
+  public async Task GradeSubmission_AsCourseTeacher_ApprovesWithFeedback()
+  {
+    var teacher = await CreateTeacherAsync("sub.grade.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.grade.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "Final answer.");
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+
+    var graded = await GradeAsync(teacher.AccessToken, submission.Id, "Approved", "Well done!");
+    Assert.NotNull(graded);
+    Assert.Equal("Approved", graded.Status);
+    Assert.Equal("Well done!", graded.Feedback);
+
+    // The owning student can read the graded submission.
+    var getResponse = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/submissions/{submission.Id}",
+        student.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+    var viewed = await getResponse.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(viewed);
+    Assert.Equal("Approved", viewed.Status);
+  }
+
+  [Fact]
+  public async Task GradeSubmission_TeacherNotInCourse_ReturnsForbidden()
+  {
+    var teacherA = await CreateTeacherAsync("sub.other.teacher.a@example.com");
+    var courseId = await CreateCourseAsync(teacherA.AccessToken);
+    var moduleId = await CreateModuleAsync(teacherA.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacherA.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.other.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "Answer.");
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+
+    // A teacher with no relation to the course tries to grade.
+    var teacherB = await CreateTeacherAsync("sub.other.teacher.b@example.com");
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/submissions/{submission.Id}",
+        teacherB.AccessToken,
+        new UpdateSubmissionRequestDto { Status = "Approved" });
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GradeSubmission_InvalidStatus_ReturnsBadRequest()
+  {
+    var teacher = await CreateTeacherAsync("sub.invalid.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.invalid.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "Answer.");
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Patch,
+        $"/api/submissions/{submission.Id}",
+        teacher.AccessToken,
+        new UpdateSubmissionRequestDto { Status = "Graded" });
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetSubmission_AnotherStudent_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("sub.privacy.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var studentA = await CreateStudentAsync("sub.privacy.student.a@example.com");
+    await EnrollStudentAsync(studentA.AccessToken, courseId);
+    var handIn = await HandInAsync(studentA.AccessToken, assignmentId, "Student A's answer.");
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+
+    // A classmate must not be able to read Student A's submission.
+    var studentB = await CreateStudentAsync("sub.privacy.student.b@example.com");
+    await EnrollStudentAsync(studentB.AccessToken, courseId);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/submissions/{submission.Id}",
+        studentB.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetMySubmissions_ReturnsOnlyOwn()
+  {
+    var teacher = await CreateTeacherAsync("sub.mine.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var studentA = await CreateStudentAsync("sub.mine.student.a@example.com");
+    await EnrollStudentAsync(studentA.AccessToken, courseId);
+    var handInA = await HandInAsync(studentA.AccessToken, assignmentId, "Answer by A.");
+    var submissionA = await handInA.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submissionA);
+
+    var studentB = await CreateStudentAsync("sub.mine.student.b@example.com");
+    await EnrollStudentAsync(studentB.AccessToken, courseId);
+    var handInB = await HandInAsync(studentB.AccessToken, assignmentId, "Answer by B.");
+    var submissionB = await handInB.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submissionB);
+
+    var responseA = await SendAuthorizedAsync(HttpMethod.Get, "/api/submissions/mine", studentA.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, responseA.StatusCode);
+    var mineA = await responseA.Content.ReadFromJsonAsync<List<SubmissionDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(mineA);
+    Assert.Single(mineA);
+    Assert.Equal(submissionA.Id, mineA[0].Id);
+
+    var responseB = await SendAuthorizedAsync(HttpMethod.Get, "/api/submissions/mine", studentB.AccessToken);
+    var mineB = await responseB.Content.ReadFromJsonAsync<List<SubmissionDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(mineB);
+    Assert.Single(mineB);
+    Assert.Equal(submissionB.Id, mineB[0].Id);
+  }
+
+  [Fact]
+  public async Task GetAssignmentSubmissions_AsStudent_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("sub.list.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.list.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/assignments/{assignmentId}/submissions",
+        student.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task DeleteSubmission_AsOwnerStudent_ReturnsNoContent()
+  {
+    var teacher = await CreateTeacherAsync("sub.delete.owner.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.delete.owner.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "Answer.");
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+
+    var delete = await SendAuthorizedAsync(
+        HttpMethod.Delete,
+        $"/api/submissions/{submission.Id}",
+        student.AccessToken);
+    Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
 
     var get = await SendAuthorizedAsync(
         HttpMethod.Get,
-        $"/api/assignments/{assignmentId}",
-        teacher.AccessToken);
+        $"/api/submissions/{submission.Id}",
+        student.AccessToken);
     Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
   }
 
   [Fact]
-  public async Task DeleteAssignment_AsNonCreatorTeacher_ReturnsForbidden()
+  public async Task DeleteSubmission_AnotherStudent_ReturnsForbidden()
   {
-    var creator = await CreateTeacherAsync("course.teacher.delete.creator@example.com");
-    var other = await CreateTeacherAsync("course.teacher.delete.other@example.com");
+    var teacher = await CreateTeacherAsync("sub.delete.other.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
 
-    var courseId = await CreateCourseAsync(creator.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(creator.AccessToken, courseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(creator.AccessToken, moduleId, Jan31);
+    var studentA = await CreateStudentAsync("sub.delete.other.student.a@example.com");
+    await EnrollStudentAsync(studentA.AccessToken, courseId);
+    var handIn = await HandInAsync(studentA.AccessToken, assignmentId, "Answer by A.");
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+
+    var studentB = await CreateStudentAsync("sub.delete.other.student.b@example.com");
+    await EnrollStudentAsync(studentB.AccessToken, courseId);
 
     var response = await SendAuthorizedAsync(
+        HttpMethod.Delete,
+        $"/api/submissions/{submission.Id}",
+        studentB.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task DeleteAssignment_KeepsStudentSubmissionAsHistory()
+  {
+    var teacher = await CreateTeacherAsync("sub.keep.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+
+    var student = await CreateStudentAsync("sub.keep.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "My work that must survive.");
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
+    Assert.Equal(assignmentId, submission.AssignmentId!.Value);
+
+    var delete = await SendAuthorizedAsync(
         HttpMethod.Delete,
         $"/api/assignments/{assignmentId}",
-        other.AccessToken);
-
-    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-  }
-
-  [Fact]
-  public async Task DeleteAssignment_AsStudent_ReturnsForbidden()
-  {
-    var teacher = await CreateTeacherAsync("course.teacher.delete.student@example.com");
-    var student = await RegisterAsync("course.student.delete@example.com");
-
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
-    var assignmentyId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan31);
-
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Delete,
-        $"/api/assignments/{assignmentyId}",
-        student.AccessToken);
-
-    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-  }
-
-  [Fact]
-  public async Task DeleteAssignment_UnknownCourse_ReturnsNotFound()
-  {
-    var teacher = await CreateTeacherAsync("course.teacher.delete.missing@example.com");
-
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Delete,
-        "/api/assignments/999999",
         teacher.AccessToken);
+    Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
 
-    Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    // The student's work is kept as history, now detached from the deleted assignment.
+    var mineResponse = await SendAuthorizedAsync(HttpMethod.Get, "/api/submissions/mine", student.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, mineResponse.StatusCode);
+    var mine = await mineResponse.Content.ReadFromJsonAsync<List<SubmissionDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(mine);
+    var kept = Assert.Single(mine);
+    Assert.Equal(submission.Id, kept.Id);
+    Assert.Equal("My work that must survive.", kept.Content);
+    Assert.Null(kept.AssignmentId);
   }
 
   [Fact]
-  public async Task UpdateAssignment_AsTeacher_ReturnsOkAndUpdates()
+  public async Task GetPendingSubmissions_AsTeacher_ReturnsOnlyPending()
   {
-    var teacher = await CreateTeacherAsync("course.teacher.update@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan31);
+    var teacher = await CreateTeacherAsync("sub.pendinglist.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
 
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Patch,
-        $"/api/assignments/{assignmentId}",
-        teacher.AccessToken,
-        new UpdateAssignmentRequestDto { Name = "Algebra II" });
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+    var student = await CreateStudentAsync("sub.pendinglist.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "Please grade me.");
+    var pendingSubmission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(pendingSubmission);
 
+    // An already-approved submission must not appear as pending.
+    var assignment2 = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
+    var student2 = await CreateStudentAsync("sub.pendinglist.student2@example.com");
+    await EnrollStudentAsync(student2.AccessToken, courseId);
+    var handIn2 = await HandInAsync(student2.AccessToken, assignment2, "Already graded.");
+    var graded = await handIn2.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(graded);
+    await GradeAsync(teacher.AccessToken, graded.Id, "Approved", null);
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/submissions/pending", teacher.AccessToken);
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-    var body = await response.Content.ReadFromJsonAsync<AssignmentDto>(TestContext.Current.CancellationToken);
-    Assert.NotNull(body);
-    Assert.Equal("Algebra II", body.Name);
-    Assert.Equal("Test course", body.Description);
-    Assert.Equal(Jan31, body.DueDate);
+    var list = await response.Content.ReadFromJsonAsync<List<SubmissionDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(list);
+    var match = Assert.Single(list);
+    Assert.Equal(pendingSubmission.Id, match.Id);
+    Assert.Equal("HandedIn", match.Status);
   }
 
   [Fact]
-  public async Task UpdateAssignment_AsStudent_ReturnsForbidden()
+  public async Task GetPendingSubmissions_AsTeacher_ExcludesOtherCourses()
   {
-    var teacher = await CreateTeacherAsync("course.teacher.update.student@example.com");
-    var student = await RegisterAsync("course.student.update@example.com");
+    var teacherA = await CreateTeacherAsync("sub.pending.teacher.a@example.com");
+    var courseA = await CreateCourseAsync(teacherA.AccessToken);
+    var moduleA = await CreateModuleAsync(teacherA.AccessToken, courseA);
+    var assignmentA = await CreateAssignmentAsync(teacherA.AccessToken, moduleA);
 
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan31);
+    var studentA = await CreateStudentAsync("sub.pending.student.a@example.com");
+    await EnrollStudentAsync(studentA.AccessToken, courseA);
+    var handInA = await HandInAsync(studentA.AccessToken, assignmentA, "A's pending submission.");
+    Assert.Equal(HttpStatusCode.Created, handInA.StatusCode);
 
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Patch,
-        $"/api/assignments/{assignmentId}",
-        student.AccessToken,
-        new UpdateAssignmentRequestDto { Name = "Algebra II" });
+    // Teacher B teaches a different course and must not see teacher A's pending work.
+    var teacherB = await CreateTeacherAsync("sub.pending.teacher.b@example.com");
+    var courseB = await CreateCourseAsync(teacherB.AccessToken);
+    await CreateModuleAsync(teacherB.AccessToken, courseB);
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/submissions/pending", teacherB.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    var list = await response.Content.ReadFromJsonAsync<List<SubmissionDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(list);
+    Assert.Empty(list);
+  }
+
+  [Fact]
+  public async Task GetPendingSubmissions_AsStudent_ReturnsForbidden()
+  {
+    var student = await CreateStudentAsync("sub.pending.student.forbidden@example.com");
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/submissions/pending", student.AccessToken);
 
     Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
   }
 
   [Fact]
-  public async Task UpdateAssignment_MoveToOtherModule_ByNonOwnerOfSource_ReturnsForbidden()
+  public async Task GetUserAssignments_ReflectsSubmissionStatus()
   {
-    var owner = await CreateTeacherAsync("course.teacher.move.owner@example.com");
-    var otherTeacher = await CreateTeacherAsync("course.teacher.move.other@example.com");
+    var teacher = await CreateTeacherAsync("sub.astatus.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
 
-    var sourceCourseId = await CreateCourseAsync(owner.AccessToken, Jan1, Jan31);
-    var sourceModuleId = await CreateModuleAsync(owner.AccessToken, sourceCourseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(owner.AccessToken, sourceModuleId, Jan31);
+    var student = await CreateStudentAsync("sub.astatus.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
 
-    var targetCourseId = await CreateCourseAsync(otherTeacher.AccessToken, Jan1, Jan31);
-    var targetModuleId = await CreateModuleAsync(otherTeacher.AccessToken, targetCourseId, Jan1, Jan31);
+    // Not submitted yet -> no status/feedback/id.
+    var before = await SendAuthorizedAsync(HttpMethod.Get, "/api/assignments/mine", student.AccessToken);
+    Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+    var beforeList = await before.Content.ReadFromJsonAsync<List<StudentAssignmentDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(beforeList);
+    var notSubmitted = Assert.Single(beforeList);
+    Assert.Equal(assignmentId, notSubmitted.Id);
+    Assert.Null(notSubmitted.LatestSubmissionId);
+    Assert.Null(notSubmitted.LatestSubmissionStatus);
+    Assert.Equal(string.Empty, notSubmitted.LatestFeedback);
 
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Patch,
-        $"/api/assignments/{assignmentId}",
-        otherTeacher.AccessToken,
-        new UpdateAssignmentRequestDto { ModuleId = targetModuleId, Name = "Stolen module" });
+    // Hand in -> HandedIn.
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "My answer.");
+    Assert.Equal(HttpStatusCode.Created, handIn.StatusCode);
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
 
-    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    var pending = await SendAuthorizedAsync(HttpMethod.Get, "/api/assignments/mine", student.AccessToken);
+    var pendingList = await pending.Content.ReadFromJsonAsync<List<StudentAssignmentDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(pendingList);
+    var handedIn = Assert.Single(pendingList);
+    Assert.Equal(submission.Id, handedIn.LatestSubmissionId);
+    Assert.Equal("HandedIn", handedIn.LatestSubmissionStatus);
+
+    // Teacher approves -> Approved with feedback.
+    await GradeAsync(teacher.AccessToken, submission.Id, "Approved", "Great work!");
+
+    var after = await SendAuthorizedAsync(HttpMethod.Get, "/api/assignments/mine", student.AccessToken);
+    var afterList = await after.Content.ReadFromJsonAsync<List<StudentAssignmentDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(afterList);
+    var approved = Assert.Single(afterList);
+    Assert.Equal(submission.Id, approved.LatestSubmissionId);
+    Assert.Equal("Approved", approved.LatestSubmissionStatus);
+    Assert.Equal("Great work!", approved.LatestFeedback);
   }
 
   [Fact]
-  public async Task UpdateAssignment_MoveToOwnedModule_ReturnsOkAndMoves()
+  public async Task GetUserAssignments_ReflectsRevision()
   {
-    var teacher = await CreateTeacherAsync("course.teacher.move.owned@example.com");
+    var teacher = await CreateTeacherAsync("sub.revstatus.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId);
 
-    var sourceCourseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var sourceModuleId = await CreateModuleAsync(teacher.AccessToken, sourceCourseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, sourceModuleId, Jan31);
+    var student = await CreateStudentAsync("sub.revstatus.student@example.com");
+    await EnrollStudentAsync(student.AccessToken, courseId);
 
-    var targetCourseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var targetModuleId = await CreateModuleAsync(teacher.AccessToken, targetCourseId, Jan1, Jan31);
+    var handIn = await HandInAsync(student.AccessToken, assignmentId, "First attempt.");
+    var submission = await handIn.Content.ReadFromJsonAsync<SubmissionDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(submission);
 
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Patch,
-        $"/api/assignments/{assignmentId}",
-        teacher.AccessToken,
-        new UpdateAssignmentRequestDto { ModuleId = targetModuleId });
+    await GradeAsync(teacher.AccessToken, submission.Id, "Revision", "Please add sources.");
 
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/assignments/mine", student.AccessToken);
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-    var body = await response.Content.ReadFromJsonAsync<AssignmentDto>(TestContext.Current.CancellationToken);
-    Assert.NotNull(body);
-    Assert.Equal(targetModuleId, body.ModuleId);
-  }
-
-  [Fact]
-  public async Task UpdateAssignment_WithDueDateAfterModuleEnd_ReturnsBadRequest()
-  {
-    var teacher = await CreateTeacherAsync("course.teacher.update.start@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan1, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan1, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan31);
-
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Patch,
-        $"/api/assignments/{assignmentId}",
-        teacher.AccessToken,
-        new UpdateAssignmentRequestDto { DueDate = Feb28 });
-
-    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-  }
-
-
-  [Fact]
-  public async Task UpdateAssignment_WithDueDateBeforeModuleStart_ReturnsBadRequest()
-  {
-    var teacher = await CreateTeacherAsync("course.teacher.update.end@example.com");
-    var courseId = await CreateCourseAsync(teacher.AccessToken, Jan15, Jan31);
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, Jan15, Jan31);
-    var assignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, Jan31);
-
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Patch,
-        $"/api/assignments/{assignmentId}",
-        teacher.AccessToken,
-        new UpdateAssignmentRequestDto { DueDate = Jan1 });
-
-    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-  }
-
-  [Fact]
-  public async Task UpdateAssignment_UnknownCourse_ReturnsNotFound()
-  {
-    var teacher = await CreateTeacherAsync("course.teacher.update.missing@example.com");
-
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Patch,
-        "/api/assignments/999999",
-        teacher.AccessToken,
-        new UpdateAssignmentRequestDto { Name = "Missing" });
-
-    Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-  }
-
-  [Fact]
-  public async Task GetCurrentAssignments_AsStudent_ReturnsOnlyOpenAssignments()
-  {
-    var teacher = await CreateTeacherAsync("course.teacher.current@example.com");
-
-    var now = DateTime.UtcNow;
-    var courseId = await CreateCourseAsync(teacher.AccessToken, now.AddDays(-10), now.AddDays(10));
-    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId, now.AddDays(-10), now.AddDays(10));
-
-    var pastAssignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, now.AddDays(-5));
-    var openAssignmentId = await CreateAssignmentAsync(teacher.AccessToken, moduleId, now.AddDays(5));
-
-    var student = await RegisterAsync("course.student.current@example.com");
-    var enroll = await SendAuthorizedAsync(
-        HttpMethod.Post,
-        "/api/courses/enroll",
-        student.AccessToken,
-        new EnrollRequestDto { CourseId = courseId });
-    enroll.EnsureSuccessStatusCode();
-
-    var response = await SendAuthorizedAsync(
-        HttpMethod.Get,
-        "/api/assignments/current",
-        student.AccessToken);
-
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-    var assignments = await response.Content.ReadFromJsonAsync<List<AssignmentDto>>(TestContext.Current.CancellationToken);
-    Assert.NotNull(assignments);
-    Assert.Contains(assignments, a => a.Id == openAssignmentId);
-    Assert.DoesNotContain(assignments, a => a.Id == pastAssignmentId);
+    var list = await response.Content.ReadFromJsonAsync<List<StudentAssignmentDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(list);
+    var item = Assert.Single(list);
+    Assert.Equal("Revision", item.LatestSubmissionStatus);
+    Assert.Equal("Please add sources.", item.LatestFeedback);
   }
 }

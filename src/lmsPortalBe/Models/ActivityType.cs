@@ -5,5 +5,8 @@ namespace lmsPortalBe.Models
     Lecture,
     Mentorship,
     Workshop,
+    Seminar,
+    Practice,
+    ELearning
   }
 }

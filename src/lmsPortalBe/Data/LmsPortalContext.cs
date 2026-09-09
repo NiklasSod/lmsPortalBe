@@ -106,8 +106,20 @@ namespace lmsPortalBe.Data
             {
                 entity.ToTable("lmsResource");
                 entity.HasOne(e => e.Creator)
-                    .WithMany(e => e.Resources)
-                    .HasForeignKey();
+                    .WithMany(c => c.Resources)
+                    .HasForeignKey(e => e.CreatorId);
+                
+                entity.HasOne(e => e.Course)
+                    .WithMany(c => c.Resources)
+                    .HasForeignKey(e => e.CourseId);
+                
+                entity.HasOne(e => e.Module)
+                    .WithMany(c => c.Resources)
+                    .HasForeignKey(e => e.ModuleId);
+                
+                entity.HasOne(e => e.Activity)
+                    .WithMany(c => c.Resources)
+                    .HasForeignKey(e => e.ActivityId);
             });
 
             builder.Entity<Assignment>(entity =>

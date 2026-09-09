@@ -9,5 +9,11 @@ namespace lmsPortalBe.Models
         public string DisplayName { get; set; } = string.Empty;
         public string Url { get; set; } = string.Empty;
         public DateTime? UploadDate { get; set; } = null;
+        public int? CourseId { get; set; }
+        public CourseModel? Course { get; set; }
+        public int? ActivityId { get; set; } 
+        public Activity? Activity { get; set; }
+        public int? ModuleId { get; set; }
+        public CourseModule? Module { get; set; }
     }
 }

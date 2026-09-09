@@ -81,6 +81,74 @@ namespace lmsPortalBe.Controllers
       return Ok(_mapper.Map<ResourceDto>(resource));
     }
 
+    [HttpGet("/api/courses/{courseId:int}/resources")]
+    public async Task<IActionResult> GetCourseResources(int courseId)
+    {
+      var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == courseId);
+      if (course is null)
+      {
+        return NotFound();
+      }
+
+      if (!User.IsInRole("admin") && !await IsEnrolledAsync(courseId))
+      {
+        return Forbid();
+      }
+
+      var resources = await _context.Resources
+          .Where(r => r.CourseId == courseId)
+          .OrderBy(r => r.UploadDate)
+          .ToListAsync();
+
+      return Ok(resources.Select(_mapper.Map<ResourceDto>));
+    }
+
+    [HttpGet("/api/modules/{moduleId:int}/resources")]
+    public async Task<IActionResult> GetModuleResources(int moduleId)
+    {
+      var module = await _context.CourseModules.FirstOrDefaultAsync(m => m.Id == moduleId);
+      if (module is null)
+      {
+        return NotFound();
+      }
+
+      if (!User.IsInRole("admin") && !await IsEnrolledAsync(module.CourseId))
+      {
+        return Forbid();
+      }
+
+      var resources = await _context.Resources
+          .Where(r => r.ModuleId == moduleId)
+          .OrderBy(r => r.UploadDate)
+          .ToListAsync();
+
+      return Ok(resources.Select(_mapper.Map<ResourceDto>));
+    }
+
+    [HttpGet("/api/activity/{activityId:int}/resources")]
+    public async Task<IActionResult> GetActivityResources(int activityId)
+    {
+      var activity = await _context.Activities
+          .Include(a => a.Module)
+          .FirstOrDefaultAsync(a => a.Id == activityId);
+      if (activity is null)
+      {
+        return NotFound();
+      }
+
+      if (!User.IsInRole("admin") && !await IsEnrolledAsync(activity.Module.CourseId))
+      {
+        return Forbid();
+      }
+
+      var resources = await _context.Resources
+          .Where(r => r.ActivityId == activityId)
+          .OrderBy(r => r.UploadDate)
+          .ToListAsync();
+
+      return Ok(resources.Select(_mapper.Map<ResourceDto>));
+    }
+
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> CreateResource(CreateResourceRequestDto dto)

@@ -5,8 +5,7 @@ namespace lmsPortalBe.DTOs.Course;
 public class SubmissionDto
 {
   public int Id { get; set; }
-  [Required]
-  public int AssignmentId { get; set; }
+  public int? AssignmentId { get; set; }
   [Required]
   public string StudentId { get; set; } = string.Empty;
   [Required]

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using lmsPortalBe.Data;
 
@@ -10,9 +11,11 @@ using lmsPortalBe.Data;
 namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
-    partial class LmsPortalContextModelSnapshot : ModelSnapshot
+    [Migration("20260908092246_submissions2")]
+    partial class submissions2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -397,62 +400,13 @@ namespace lmsPortalBe.Migrations
                     b.ToTable("lmsRefreshToken", (string)null);
                 });
 
-            modelBuilder.Entity("lmsPortalBe.Models.Resource", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("ActivityId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("CourseId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("CreatorId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsStudentSubmitted")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("LastEditDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("ModuleId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("UploadDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActivityId");
-
-                    b.HasIndex("CourseId");
-
-                    b.HasIndex("CreatorId");
-
-                    b.HasIndex("ModuleId");
-
-                    b.ToTable("lmsResource", (string)null);
-                });
-
             modelBuilder.Entity("lmsPortalBe.Models.Submission", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("AssignmentId")
+                    b.Property<int>("AssignmentId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Content")
@@ -480,32 +434,6 @@ namespace lmsPortalBe.Migrations
                     b.HasIndex("StudentId", "AssignmentId");
 
                     b.ToTable("lmsSubmission", (string)null);
-                });
-
-            modelBuilder.Entity("lmsPortalBe.Models.UserProfile", b =>
-                {
-                    b.Property<string>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AboutMe")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly?>("DateOfBirth")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("GitHubLink")
-                        .HasColumnType("TEXT");
-
-                    b.PrimitiveCollection<string>("Skills")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("WhatsAppNumber")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("lmsUserProfile", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -622,44 +550,12 @@ namespace lmsPortalBe.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("lmsPortalBe.Models.Resource", b =>
-                {
-                    b.HasOne("lmsPortalBe.Models.Activity", "Activity")
-                        .WithMany("Resources")
-                        .HasForeignKey("ActivityId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("lmsPortalBe.Models.CourseModel", "Course")
-                        .WithMany("Resources")
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("lmsPortalBe.Models.ApplicationUser", "Creator")
-                        .WithMany("Resources")
-                        .HasForeignKey("CreatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("lmsPortalBe.Models.CourseModule", "Module")
-                        .WithMany("Resources")
-                        .HasForeignKey("ModuleId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Activity");
-
-                    b.Navigation("Course");
-
-                    b.Navigation("Creator");
-
-                    b.Navigation("Module");
-                });
-
             modelBuilder.Entity("lmsPortalBe.Models.Submission", b =>
                 {
                     b.HasOne("lmsPortalBe.Models.Assignment", "Assignment")
                         .WithMany("Submissions")
                         .HasForeignKey("AssignmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .IsRequired();
 
                     b.HasOne("lmsPortalBe.Models.ApplicationUser", "Student")
                         .WithMany("Submissions")
@@ -672,29 +568,9 @@ namespace lmsPortalBe.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("lmsPortalBe.Models.UserProfile", b =>
-                {
-                    b.HasOne("lmsPortalBe.Models.ApplicationUser", "User")
-                        .WithOne("Profile")
-                        .HasForeignKey("lmsPortalBe.Models.UserProfile", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("lmsPortalBe.Models.Activity", b =>
-                {
-                    b.Navigation("Resources");
-                });
-
             modelBuilder.Entity("lmsPortalBe.Models.ApplicationUser", b =>
                 {
                     b.Navigation("Enrollments");
-
-                    b.Navigation("Profile");
-
-                    b.Navigation("Resources");
 
                     b.Navigation("Submissions");
                 });
@@ -709,8 +585,6 @@ namespace lmsPortalBe.Migrations
                     b.Navigation("Enrollments");
 
                     b.Navigation("Modules");
-
-                    b.Navigation("Resources");
                 });
 
             modelBuilder.Entity("lmsPortalBe.Models.CourseModule", b =>
@@ -718,8 +592,6 @@ namespace lmsPortalBe.Migrations
                     b.Navigation("Activities");
 
                     b.Navigation("Assignments");
-
-                    b.Navigation("Resources");
                 });
 #pragma warning restore 612, 618
         }

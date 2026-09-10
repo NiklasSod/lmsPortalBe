@@ -20,13 +20,13 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
 
   public TestWebApplicationFactory()
   {
-    _connection = new SqliteConnection("DataSource=:memory:");
+    _connection = new SqliteConnection("DataSource=:memory:;Foreign Keys=True");
     _connection.Open();
 
     // Program.cs reads these values from configuration and throws when they are
     // missing. DotNetEnv.Env.Load() does not overwrite variables that already
     // exist, so these take precedence over anything in the repository's .env file.
-    Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "DataSource=:memory:");
+    Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "DataSource=:memory:;Foreign Keys=True");
     Environment.SetEnvironmentVariable(JwtConstants.Secret, "test-secret-long-enough-for-hmac-sha256-signing-key-0123456789");
     Environment.SetEnvironmentVariable(JwtConstants.Issuer, "lmsPortalBe.Tests");
     Environment.SetEnvironmentVariable(JwtConstants.Audience, "lmsPortalBe.Tests.Client");

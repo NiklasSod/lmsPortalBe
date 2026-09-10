@@ -9,28 +9,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace lmsPortalBe.Controllers
 {
-  [ApiController]
   [Route("api/[controller]")]
-  [Authorize]
   public class AssignmentsController(
       ILmsPortalContext context,
-      IMapper mapper) : ControllerBase
+      IMapper mapper)
+      : CoursePortalControllerBase(context, mapper)
   {
-    private readonly ILmsPortalContext _context = context;
-    private readonly IMapper _mapper = mapper;
-
-    private string CurrentUserId =>
-        User.FindFirstValue(ClaimTypes.NameIdentifier)
-        ?? throw new UnauthorizedAccessException("User identity not found.");
-
-    private async Task<bool> IsCourseTeacherAsync(int courseId) =>
-        await _context.CourseEnrollments.AnyAsync(e => e.CourseId == courseId
-            && e.UserId == CurrentUserId
-            && e.Role == CourseRole.Teacher);
-
-    private async Task<bool> IsEnrolledAsync(int courseId) =>
-        await _context.CourseEnrollments.AnyAsync(e => e.CourseId == courseId
-            && e.UserId == CurrentUserId);
 
     [HttpGet]
     [Authorize(Roles = "admin")]
@@ -51,14 +35,11 @@ namespace lmsPortalBe.Controllers
         .Select(e => e.CourseId)
         .ToListAsync();
 
-      var assignments = await _context.CourseModules
+      var query = _context.CourseModules
           .Where(m => enrolledCourses.Contains(m.CourseId))
-          .SelectMany(m => m.Assignments)
-          .OrderBy(a => a.DueDate)
-          .ToListAsync();
+          .SelectMany(m => m.Assignments);
 
-
-      return Ok(assignments.Select(_mapper.Map<AssignmentDto>));
+      return Ok(await BuildStudentAssignmentsAsync(query));
     }
 
     [HttpGet("current")]
@@ -69,14 +50,44 @@ namespace lmsPortalBe.Controllers
           .Select(e => e.CourseId)
           .ToListAsync();
 
-      var assignments = await _context.CourseModules
+      var query = _context.CourseModules
           .Where(m => enrolledCourses.Contains(m.CourseId))
           .SelectMany(m => m.Assignments)
-          .Where(a => a.DueDate >= DateTime.UtcNow)
+          .Where(a => a.DueDate >= DateTime.UtcNow);
+
+      return Ok(await BuildStudentAssignmentsAsync(query));
+    }
+
+    private async Task<List<StudentAssignmentDto>> BuildStudentAssignmentsAsync(IQueryable<Assignment> assignmentsQuery)
+    {
+      var assignments = await assignmentsQuery
           .OrderBy(a => a.DueDate)
           .ToListAsync();
 
-      return Ok(assignments.Select(_mapper.Map<AssignmentDto>));
+      var mySubmissions = await _context.Submissions
+          .Where(s => s.StudentId == CurrentUserId)
+          .ToListAsync();
+
+      var latestByAssignment = mySubmissions
+          .Where(s => s.AssignmentId.HasValue)
+          .GroupBy(s => s.AssignmentId!.Value)
+          .ToDictionary(
+              g => g.Key,
+              g => g.OrderByDescending(s => s.Id).First());
+
+      return assignments.Select(a =>
+      {
+        var dto = _mapper.Map<StudentAssignmentDto>(a);
+
+        if (latestByAssignment.TryGetValue(a.Id, out var submission))
+        {
+          dto.LatestSubmissionId = submission.Id;
+          dto.LatestSubmissionStatus = submission.Status.ToString();
+          dto.LatestFeedback = submission.Feedback;
+        }
+
+        return dto;
+      }).ToList();
     }
 
     [HttpGet("{id:int}")]
@@ -237,6 +248,7 @@ namespace lmsPortalBe.Controllers
     {
       var assignment = await _context.Assignments
           .Include(c => c.Module)
+          .Include(c => c.Submissions)
           .FirstOrDefaultAsync(c => c.Id == id);
       if (assignment is null)
       {

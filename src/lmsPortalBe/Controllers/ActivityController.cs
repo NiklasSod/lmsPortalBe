@@ -9,29 +9,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace lmsPortalBe.Controllers
 {
-  [ApiController]
+  
   [Route("api/[controller]")]
-  [Authorize]
   public class ActivitiesController(
       ILmsPortalContext context,
-      IMapper mapper) : ControllerBase
+      IMapper mapper) 
+      : CoursePortalControllerBase(context, mapper)
   {
-    private readonly ILmsPortalContext _context = context;
-    private readonly IMapper _mapper = mapper;
-
-    private string CurrentUserId =>
-        User.FindFirstValue(ClaimTypes.NameIdentifier)
-        ?? throw new UnauthorizedAccessException("User identity not found.");
-
-    private async Task<bool> IsCourseTeacherAsync(int courseId) =>
-        await _context.CourseEnrollments.AnyAsync(e => e.CourseId == courseId
-            && e.UserId == CurrentUserId
-            && e.Role == CourseRole.Teacher);
-
-    private async Task<bool> IsEnrolledAsync(int courseId) =>
-        await _context.CourseEnrollments.AnyAsync(e => e.CourseId == courseId
-            && e.UserId == CurrentUserId);
-
     [HttpGet]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> GetAllActivities()

@@ -115,6 +115,9 @@ public static class DbSeeder
       return;
     }
 
+    var seededAssignments = new List<(Assignment Assignment, CourseModel Course)>();
+    var seededStudents = new List<(ApplicationUser Student, CourseModel Course)>();
+
     // COURSES
     var mathCourse = new CourseModel
     {
@@ -176,10 +179,22 @@ public static class DbSeeder
       module.Activities.Add(secondActivity);
 
       // ASSIGNMENTS
-      var firstAssignment = new Assignment { Name = "First Assignment", Description = "First", DueDate = start };
-      var secondAssignment = new Assignment { Name = "Second Assignment", Description = "Second", DueDate = start.AddDays(1) };
+      var firstAssignment = new Assignment
+      {
+        Name = $"{name} — Introduction",
+        Description = $"Introduction to the core concepts of {name}.",
+        DueDate = start
+      };
+      var secondAssignment = new Assignment
+      {
+        Name = $"{name} — Applied Practice",
+        Description = $"Apply the concepts from {name} to a hands-on task.",
+        DueDate = start.AddDays(1)
+      };
       module.Assignments.Add(firstAssignment);
       module.Assignments.Add(secondAssignment);
+      seededAssignments.Add((firstAssignment, course));
+      seededAssignments.Add((secondAssignment, course));
 
       context.CourseModules.Add(module);
     }
@@ -206,8 +221,22 @@ public static class DbSeeder
         CourseId = backendCourse.Id
       };
 
-      module.Assignments.Add(new Assignment { Name = "First Assignment", Description = "First", DueDate = start });
-      module.Assignments.Add(new Assignment { Name = "Second Assignment", Description = "Second", DueDate = start.AddDays(1) });
+      var firstAssignment = new Assignment
+      {
+        Name = $"{name} — Introduction",
+        Description = $"Introduction to the core concepts of {name}.",
+        DueDate = start
+      };
+      var secondAssignment = new Assignment
+      {
+        Name = $"{name} — Applied Practice",
+        Description = $"Apply the concepts from {name} to a hands-on task.",
+        DueDate = start.AddDays(1)
+      };
+      module.Assignments.Add(firstAssignment);
+      module.Assignments.Add(secondAssignment);
+      seededAssignments.Add((firstAssignment, backendCourse));
+      seededAssignments.Add((secondAssignment, backendCourse));
 
       context.CourseModules.Add(module);
     }
@@ -298,6 +327,40 @@ public static class DbSeeder
         UserId = student.Id,
         Role = CourseRole.Student
       });
+
+      seededStudents.Add((student, course));
+    }
+
+    // SUBMISSIONS — deterministic demo mix so the teacher "pending" list has data.
+    var random = new Random(20260910);
+
+    foreach (var (student, course) in seededStudents)
+    {
+      var courseAssignments = seededAssignments
+          .Where(a => a.Course.Id == course.Id)
+          .OrderBy(a => a.Assignment.DueDate)
+          .ToList();
+
+      foreach (var (assignment, _) in courseAssignments.Take(2))
+      {
+        var roll = random.Next(0, 4);
+        var (status, feedback) = roll switch
+        {
+          0 => (AssignmentStatus.Approved, "Great work, well done!"),
+          1 => (AssignmentStatus.Revision, "Please revise section two and resubmit."),
+          _ => (AssignmentStatus.HandedIn, string.Empty)
+        };
+
+        context.Submissions.Add(new Submission
+        {
+          AssignmentId = assignment.Id,
+          StudentId = student.Id,
+          Content = $"Demo submission by {student.FirstName} {student.LastName} for '{assignment.Name}'.",
+          Feedback = feedback,
+          Status = status,
+          HandinDate = DateTime.UtcNow.AddDays(-random.Next(1, 8))
+        });
+      }
     }
 
     await context.SaveChangesAsync();

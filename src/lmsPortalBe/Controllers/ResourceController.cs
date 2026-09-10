@@ -47,6 +47,7 @@ namespace lmsPortalBe.Controllers
           .ToListAsync();
 
       var resources = await _context.Resources
+          .Where(r => !r.IsStudentSubmitted)
           .Where(r =>
               (r.CourseId != null && enrolledCourseIds.Contains(r.CourseId.Value))
               || (r.Module != null && enrolledCourseIds.Contains(r.Module.CourseId))
@@ -96,7 +97,7 @@ namespace lmsPortalBe.Controllers
       }
 
       var resources = await _context.Resources
-          .Where(r => r.CourseId == courseId)
+          .Where(r => r.CourseId == courseId && !r.IsStudentSubmitted)
           .OrderBy(r => r.UploadDate)
           .ToListAsync();
 
@@ -118,7 +119,7 @@ namespace lmsPortalBe.Controllers
       }
 
       var resources = await _context.Resources
-          .Where(r => r.ModuleId == moduleId)
+          .Where(r => r.ModuleId == moduleId && !r.IsStudentSubmitted)
           .OrderBy(r => r.UploadDate)
           .ToListAsync();
 
@@ -142,8 +143,40 @@ namespace lmsPortalBe.Controllers
       }
 
       var resources = await _context.Resources
-          .Where(r => r.ActivityId == activityId)
+          .Where(r => r.ActivityId == activityId && !r.IsStudentSubmitted)
           .OrderBy(r => r.UploadDate)
+          .ToListAsync();
+
+      return Ok(resources.Select(_mapper.Map<ResourceDto>));
+    }
+
+    [HttpGet("/api/modules/{moduleId:int}/student-resources")]
+    public async Task<IActionResult> GetModuleStudentResources(int moduleId)
+    {
+      var module = await _context.CourseModules.FirstOrDefaultAsync(m => m.Id == moduleId);
+      if (module is null)
+      {
+        return NotFound();
+      }
+
+      var isTeacher = User.IsInRole("admin") || await IsCourseTeacherAsync(module.CourseId);
+
+      IQueryable<Resource> query = _context.Resources
+          .Where(r => r.ModuleId == moduleId && r.IsStudentSubmitted);
+
+      if (!isTeacher)
+      {
+        if (!await IsEnrolledAsync(module.CourseId))
+        {
+          return Forbid();
+        }
+
+        query = query.Where(r => r.CreatorId == CurrentUserId);
+      }
+
+      var resources = await query
+          .OrderByDescending(r => r.UploadDate)
+          .ThenByDescending(r => r.Id)
           .ToListAsync();
 
       return Ok(resources.Select(_mapper.Map<ResourceDto>));
@@ -168,19 +201,45 @@ namespace lmsPortalBe.Controllers
         return BadRequest("Must be assigned to exactly one activity, course, or module.");
       }
 
-      var activity = dto.ActivityId is not null ?
-        await _context.Activities
+      var isStudentOnly = !User.IsInRole("teacher") && !User.IsInRole("admin");
+
+      if (isStudentOnly && dto.ModuleId is null)
+      {
+        return BadRequest("Students can only add resources to a module.");
+      }
+
+      Activity? activity = null;
+      CourseModel? course = null;
+      CourseModule? module = null;
+
+      if (dto.ActivityId is not null)
+      {
+        activity = await _context.Activities
             .Include(a => a.Module)
-            .FirstOrDefaultAsync(a => a.Id == dto.ActivityId)
-        : null;
+            .FirstOrDefaultAsync(a => a.Id == dto.ActivityId);
+        if (activity is null)
+        {
+          return NotFound("Activity not found.");
+        }
+      }
 
-      var course = dto.CourseId is not null ?
-        await _context.Courses.FirstOrDefaultAsync(c => c.Id == dto.CourseId)
-        : null;
+      if (dto.CourseId is not null)
+      {
+        course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == dto.CourseId);
+        if (course is null)
+        {
+          return NotFound("Course not found.");
+        }
+      }
 
-      var module = dto.ModuleId is not null ?
-        await _context.CourseModules.FirstOrDefaultAsync(m => m.Id == dto.ModuleId)
-        : null;
+      if (dto.ModuleId is not null)
+      {
+        module = await _context.CourseModules.FirstOrDefaultAsync(m => m.Id == dto.ModuleId);
+        if (module is null)
+        {
+          return NotFound("Module not found.");
+        }
+      }
 
       var resource = new Resource
       {
@@ -193,11 +252,19 @@ namespace lmsPortalBe.Controllers
         Activity = activity,
         Course = course,
         Module = module,
+        IsStudentSubmitted = isStudentOnly,
         UploadDate = DateTime.UtcNow,
         LastEditDate = DateTime.UtcNow,
       };
 
-      if (!User.IsInRole("admin")
+      if (isStudentOnly)
+      {
+        if (!await IsEnrolledAsync(GetResourceCourseId(resource)))
+        {
+          return Forbid();
+        }
+      }
+      else if (!User.IsInRole("admin")
           && !await IsCourseTeacherAsync(GetResourceCourseId(resource)))
       {
         return Forbid();

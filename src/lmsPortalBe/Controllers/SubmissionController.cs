@@ -102,6 +102,34 @@ namespace lmsPortalBe.Controllers
       return Ok(submissions.Select(_mapper.Map<SubmissionDto>));
     }
 
+    [HttpGet("assignment/{assignmentId:int}/student/{studentId}")]
+    public async Task<IActionResult> GetStudentAssignmentSubmissions(int assignmentId, string studentId)
+    {
+      var assignment = await _context.Assignments
+          .Include(a => a.Module)
+          .FirstOrDefaultAsync(a => a.Id == assignmentId);
+      if (assignment is null)
+      {
+        return NotFound();
+      }
+
+      var isAdmin = User.IsInRole("admin");
+      var isOwnHistory = studentId == CurrentUserId;
+      var isCourseTeacher = await IsCourseTeacherAsync(assignment.Module.CourseId);
+
+      if (!isAdmin && !isOwnHistory && !isCourseTeacher)
+      {
+        return Forbid();
+      }
+
+      var submissions = await _context.Submissions
+          .Where(s => s.AssignmentId == assignmentId && s.StudentId == studentId)
+          .OrderBy(s => s.Id)
+          .ToListAsync();
+
+      return Ok(submissions.Select(_mapper.Map<SubmissionDto>));
+    }
+
     [HttpPost]
     [Authorize(Roles = "student")]
     public async Task<IActionResult> HandInSubmission(CreateSubmissionRequestDto dto)
@@ -203,6 +231,8 @@ namespace lmsPortalBe.Controllers
       {
         submission.Feedback = dto.Feedback;
       }
+
+      submission.GradedAt = DateTime.UtcNow;
 
       await _context.SaveChangesAsync();
 

@@ -10,5 +10,6 @@ namespace lmsPortalBe.Models
         public string Description { get; set; } = string.Empty;
         public DateTime StartDate { get; set; } = DateTime.UtcNow;
         public DateTime EndDate { get; set; } = DateTime.UtcNow;
+        public ICollection<Resource> Resources { get; set; } = [];
     }
 }

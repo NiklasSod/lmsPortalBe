@@ -9,19 +9,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace lmsPortalBe.Controllers
 {
-  [ApiController]
+  
   [Route("api/[controller]")]
-  [Authorize]
   public class CoursesController(
       ILmsPortalContext context,
-      IMapper mapper) : ControllerBase
+      IMapper mapper) 
+      : CoursePortalControllerBase(context, mapper)
   {
-    private readonly ILmsPortalContext _context = context;
-    private readonly IMapper _mapper = mapper;
-
-    private string CurrentUserId =>
-        User.FindFirstValue(ClaimTypes.NameIdentifier)
-        ?? throw new UnauthorizedAccessException("User identity not found.");
 
     [HttpGet]
     public async Task<IActionResult> GetAllCourses()

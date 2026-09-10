@@ -115,6 +115,12 @@ public static class DbSeeder
       return;
     }
 
+    var seededAssignments = new List<(Assignment Assignment, CourseModel Course)>();
+    var seededStudents = new List<(ApplicationUser Student, CourseModel Course)>();
+    var seededModules = new List<(CourseModule Module, CourseModel Course)>();
+    var seededActivities = new List<(Activity Activity, CourseModel Course)>();
+    var seededTeachers = new List<(ApplicationUser Teacher, CourseModel Course)>();
+
     // COURSES
     var mathCourse = new CourseModel
     {
@@ -170,16 +176,45 @@ public static class DbSeeder
       var module = new CourseModule { Name = name, Description = description, StartDate = start, EndDate = end, Course = course, CourseId = course.Id };
 
       // ACTIVITIES
-      var firstActivity = new Activity { Name = "First Activity", Description = "First", StartDate = start, EndDate = start.AddHours(2), ActivityType = ActivityType.Lecture };
-      var secondActivity = new Activity { Name = "Second Activity", Description = "Second", StartDate = start.AddDays(1), EndDate = start.AddDays(1).AddHours(2), ActivityType = ActivityType.Mentorship };
+      var firstActivity = new Activity
+      {
+        Name = $"{name} — Lecture",
+        Description = $"Introductory lecture covering the core topics of {name}.",
+        StartDate = start,
+        EndDate = start.AddHours(2),
+        ActivityType = ActivityType.Lecture
+      };
+      var secondActivity = new Activity
+      {
+        Name = $"{name} — Mentorship Session",
+        Description = $"Guided mentorship session for {name}.",
+        StartDate = start.AddDays(1),
+        EndDate = start.AddDays(1).AddHours(2),
+        ActivityType = ActivityType.Mentorship
+      };
       module.Activities.Add(firstActivity);
       module.Activities.Add(secondActivity);
+      seededActivities.Add((firstActivity, course));
+      seededActivities.Add((secondActivity, course));
 
       // ASSIGNMENTS
-      var firstAssignment = new Assignment { Name = "First Assignment", Description = "First", DueDate = start };
-      var secondAssignment = new Assignment { Name = "Second Assignment", Description = "Second", DueDate = start.AddDays(1) };
+      var firstAssignment = new Assignment
+      {
+        Name = $"{name} — Introduction",
+        Description = $"Introduction to the core concepts of {name}.",
+        DueDate = start
+      };
+      var secondAssignment = new Assignment
+      {
+        Name = $"{name} — Applied Practice",
+        Description = $"Apply the concepts from {name} to a hands-on task.",
+        DueDate = start.AddDays(1)
+      };
       module.Assignments.Add(firstAssignment);
       module.Assignments.Add(secondAssignment);
+      seededAssignments.Add((firstAssignment, course));
+      seededAssignments.Add((secondAssignment, course));
+      seededModules.Add((module, course));
 
       context.CourseModules.Add(module);
     }
@@ -206,8 +241,23 @@ public static class DbSeeder
         CourseId = backendCourse.Id
       };
 
-      module.Assignments.Add(new Assignment { Name = "First Assignment", Description = "First", DueDate = start });
-      module.Assignments.Add(new Assignment { Name = "Second Assignment", Description = "Second", DueDate = start.AddDays(1) });
+      var firstAssignment = new Assignment
+      {
+        Name = $"{name} — Introduction",
+        Description = $"Introduction to the core concepts of {name}.",
+        DueDate = start
+      };
+      var secondAssignment = new Assignment
+      {
+        Name = $"{name} — Applied Practice",
+        Description = $"Apply the concepts from {name} to a hands-on task.",
+        DueDate = start.AddDays(1)
+      };
+      module.Assignments.Add(firstAssignment);
+      module.Assignments.Add(secondAssignment);
+      seededAssignments.Add((firstAssignment, backendCourse));
+      seededAssignments.Add((secondAssignment, backendCourse));
+      seededModules.Add((module, backendCourse));
 
       context.CourseModules.Add(module);
     }
@@ -234,6 +284,8 @@ public static class DbSeeder
         continue;
       }
 
+      await EnsureProfileAsync(context, teacher, firstName, lastName, course.Name, "teacher");
+
       context.CourseEnrollments.Add(new CourseEnrollment
       {
         CourseId = course.Id,
@@ -247,6 +299,8 @@ public static class DbSeeder
         UserId = teacher.Id,
         Role = CourseRole.Teacher
       });
+
+      seededTeachers.Add((teacher, course));
     }
 
     // STUDENTS
@@ -281,6 +335,8 @@ public static class DbSeeder
         continue;
       }
 
+      await EnsureProfileAsync(context, student, firstName, lastName, course.Name, "student");
+
       context.CourseEnrollments.Add(new CourseEnrollment
       {
         CourseId = course.Id,
@@ -293,6 +349,122 @@ public static class DbSeeder
         CourseId = backendCourse.Id,
         UserId = student.Id,
         Role = CourseRole.Student
+      });
+
+      seededStudents.Add((student, course));
+    }
+
+    // SUBMISSIONS — deterministic demo mix so the teacher "pending" list has data.
+    var random = new Random(20260910);
+
+    foreach (var (student, course) in seededStudents)
+    {
+      var courseAssignments = seededAssignments
+          .Where(a => a.Course.Id == course.Id)
+          .OrderBy(a => a.Assignment.DueDate)
+          .ToList();
+
+      foreach (var (assignment, _) in courseAssignments.Take(2))
+      {
+        var roll = random.Next(0, 4);
+        var (status, feedback) = roll switch
+        {
+          0 => (AssignmentStatus.Approved, "Great work, well done!"),
+          1 => (AssignmentStatus.Revision, "Please revise section two and resubmit."),
+          _ => (AssignmentStatus.HandedIn, string.Empty)
+        };
+
+        context.Submissions.Add(new Submission
+        {
+          AssignmentId = assignment.Id,
+          StudentId = student.Id,
+          Content = $"Demo submission by {student.FirstName} {student.LastName} for '{assignment.Name}'.",
+          Feedback = feedback,
+          Status = status,
+          HandinDate = DateTime.UtcNow.AddDays(-random.Next(1, 8))
+        });
+      }
+    }
+
+    await context.SaveChangesAsync();
+
+    // RESOURCES — teacher course material and student uploads.
+    var teacherByCourse = seededTeachers.ToDictionary(t => t.Course, t => t.Teacher);
+    var backendTeacher = teacherByCourse[csCourse];
+
+    string CreatorIdFor(CourseModel course) =>
+        course == backendCourse ? backendTeacher.Id : teacherByCourse[course].Id;
+
+    var now = DateTime.UtcNow;
+
+    // Course-level resources.
+    var courseResources = new (CourseModel Course, string Name, string Url)[]
+    {
+      (mathCourse, "Course Syllabus", "https://example.com/math/syllabus.pdf"),
+      (mathCourse, "Recommended Reading List", "https://example.com/math/reading-list.pdf"),
+      (historyCourse, "Course Syllabus", "https://example.com/history/syllabus.pdf"),
+      (historyCourse, "World History Timeline", "https://example.com/history/timeline.pdf"),
+      (csCourse, "Course Syllabus", "https://example.com/cs/syllabus.pdf"),
+      (csCourse, "Development Environment Setup", "https://example.com/cs/setup.pdf"),
+      (backendCourse, "API Design Guide", "https://example.com/backend/api-design.pdf"),
+      (backendCourse, "Backend Roadmap", "https://example.com/backend/roadmap.pdf"),
+    };
+
+    foreach (var (course, name, url) in courseResources)
+    {
+      context.Resources.Add(new Resource
+      {
+        DisplayName = name,
+        Url = url,
+        CourseId = course.Id,
+        CreatorId = CreatorIdFor(course),
+        UploadDate = now.AddDays(-30),
+        LastEditDate = now.AddDays(-5)
+      });
+    }
+
+    // Module-level resources.
+    foreach (var (module, course) in seededModules)
+    {
+      context.Resources.Add(new Resource
+      {
+        DisplayName = $"{module.Name} — Lecture Slides",
+        Url = $"https://example.com/slides/{module.Id}.pdf",
+        ModuleId = module.Id,
+        CreatorId = CreatorIdFor(course),
+        UploadDate = now.AddDays(-20),
+        LastEditDate = now.AddDays(-3)
+      });
+    }
+
+    // Activity-level resources.
+    foreach (var (activity, course) in seededActivities)
+    {
+      context.Resources.Add(new Resource
+      {
+        DisplayName = $"{activity.Name} — Handout",
+        Url = $"https://example.com/handouts/{activity.Id}.pdf",
+        ActivityId = activity.Id,
+        CreatorId = CreatorIdFor(course),
+        UploadDate = now.AddDays(-10),
+        LastEditDate = now.AddDays(-1)
+      });
+    }
+
+    // Student uploads (module-attached, flagged as student submissions).
+    foreach (var (student, course) in seededStudents)
+    {
+      var module = seededModules.First(m => m.Course.Id == course.Id).Module;
+
+      context.Resources.Add(new Resource
+      {
+        DisplayName = $"{student.FirstName}'s project draft",
+        Url = $"https://example.com/uploads/{student.Id}.pdf",
+        ModuleId = module.Id,
+        CreatorId = student.Id,
+        IsStudentSubmitted = true,
+        UploadDate = now.AddDays(-random.Next(1, 10)),
+        LastEditDate = now.AddDays(-random.Next(1, 5))
       });
     }
 
@@ -351,5 +523,34 @@ public static class DbSeeder
     }
 
     return user;
+  }
+
+  private static async Task EnsureProfileAsync(
+      ILmsPortalContext context,
+      ApplicationUser user,
+      string firstName,
+      string lastName,
+      string courseName,
+      string role)
+  {
+    if (await context.UserProfiles.AnyAsync(p => p.UserId == user.Id))
+    {
+      return;
+    }
+
+    var skills = role == "teacher"
+        ? new List<string> { courseName, "Mentoring" }
+        : new List<string> { courseName, "Teamwork" };
+
+    var daysOffset = (firstName.Length * 137 + lastName.Length * 97) % 4000;
+
+    context.UserProfiles.Add(new UserProfile
+    {
+      UserId = user.Id,
+      AboutMe = $"{firstName} {lastName} — demo {role} account.",
+      GitHubLink = $"https://github.com/{firstName.ToLowerInvariant()}{lastName.ToLowerInvariant()}",
+      Skills = skills,
+      DateOfBirth = new DateOnly(1985, 1, 1).AddDays(daysOffset)
+    });
   }
 }

@@ -9,5 +9,6 @@ namespace lmsPortalBe.Models
         public DateTime EndDate { get; set; } = DateTime.UtcNow;
         public ICollection<CourseEnrollment> Enrollments { get; set; } = [];
         public ICollection<CourseModule> Modules { get; set; } = [];
+        public ICollection<Resource> Resources { get; set; } = [];
     }
 }

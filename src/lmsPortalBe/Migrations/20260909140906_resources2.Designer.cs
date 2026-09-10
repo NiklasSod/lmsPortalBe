@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using lmsPortalBe.Data;
 
@@ -10,9 +11,11 @@ using lmsPortalBe.Data;
 namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
-    partial class LmsPortalContextModelSnapshot : ModelSnapshot
+    [Migration("20260909140906_resources2")]
+    partial class resources2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -417,9 +420,6 @@ namespace lmsPortalBe.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsStudentSubmitted")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime>("LastEditDate")
                         .HasColumnType("TEXT");
 
@@ -452,7 +452,7 @@ namespace lmsPortalBe.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("AssignmentId")
+                    b.Property<int>("AssignmentId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Content")
@@ -626,13 +626,11 @@ namespace lmsPortalBe.Migrations
                 {
                     b.HasOne("lmsPortalBe.Models.Activity", "Activity")
                         .WithMany("Resources")
-                        .HasForeignKey("ActivityId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .HasForeignKey("ActivityId");
 
                     b.HasOne("lmsPortalBe.Models.CourseModel", "Course")
                         .WithMany("Resources")
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .HasForeignKey("CourseId");
 
                     b.HasOne("lmsPortalBe.Models.ApplicationUser", "Creator")
                         .WithMany("Resources")
@@ -642,8 +640,7 @@ namespace lmsPortalBe.Migrations
 
                     b.HasOne("lmsPortalBe.Models.CourseModule", "Module")
                         .WithMany("Resources")
-                        .HasForeignKey("ModuleId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .HasForeignKey("ModuleId");
 
                     b.Navigation("Activity");
 
@@ -659,7 +656,7 @@ namespace lmsPortalBe.Migrations
                     b.HasOne("lmsPortalBe.Models.Assignment", "Assignment")
                         .WithMany("Submissions")
                         .HasForeignKey("AssignmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .IsRequired();
 
                     b.HasOne("lmsPortalBe.Models.ApplicationUser", "Student")
                         .WithMany("Submissions")

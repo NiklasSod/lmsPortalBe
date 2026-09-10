@@ -459,4 +459,230 @@ public class ResourceControllerTests : ApiTestBase, IClassFixture<TestWebApplica
         admin.AccessToken);
     Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
   }
+
+  private async Task<int> CreateStudentResourceAsync(string studentToken, int moduleId, string name)
+  {
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/resources",
+        studentToken,
+        new CreateResourceRequestDto
+        {
+          DisplayName = name,
+          Url = $"https://example.com/{name}.pdf",
+          ModuleId = moduleId
+        });
+
+    Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+    var body = await response.Content.ReadFromJsonAsync<ResourceDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(body);
+    return body.Id;
+  }
+
+  [Fact]
+  public async Task CreateResource_AsEnrolledStudent_UnderModule_ReturnsCreatedAndFlagged()
+  {
+    var teacher = await CreateTeacherAsync("resource.student.submit@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+
+    var student = await RegisterAsync("resource.student.submit.student@example.com");
+    await EnrollAsync(student.AccessToken, courseId);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/resources",
+        student.AccessToken,
+        new CreateResourceRequestDto
+        {
+          DisplayName = "My essay",
+          Url = "https://example.com/essay.pdf",
+          ModuleId = moduleId
+        });
+
+    Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+    var body = await response.Content.ReadFromJsonAsync<ResourceDto>(TestContext.Current.CancellationToken);
+    Assert.NotNull(body);
+    Assert.NotEqual(0, body.Id);
+    Assert.Equal(moduleId, body.ModuleId);
+    Assert.True(body.IsStudentSubmitted);
+  }
+
+  [Fact]
+  public async Task CreateResource_AsStudent_UnderCourse_ReturnsBadRequest()
+  {
+    var teacher = await CreateTeacherAsync("resource.student.course@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+
+    var student = await RegisterAsync("resource.student.course.student@example.com");
+    await EnrollAsync(student.AccessToken, courseId);
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/resources",
+        student.AccessToken,
+        new CreateResourceRequestDto
+        {
+          DisplayName = "Wrong place",
+          Url = "https://example.com/wrong.pdf",
+          CourseId = courseId
+        });
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task CreateResource_AsNonEnrolledStudent_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("resource.student.notenrolled@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+
+    var student = await RegisterAsync("resource.student.notenrolled.student@example.com");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/resources",
+        student.AccessToken,
+        new CreateResourceRequestDto
+        {
+          DisplayName = "Intruder",
+          Url = "https://example.com/intruder.pdf",
+          ModuleId = moduleId
+        });
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetModuleResources_ExcludesStudentSubmissions()
+  {
+    var teacher = await CreateTeacherAsync("resource.module.exclude@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+
+    var normalId = await CreateResourceAsync(teacher.AccessToken, new CreateResourceRequestDto
+    {
+      DisplayName = "Course material",
+      Url = "https://example.com/material.pdf",
+      ModuleId = moduleId
+    });
+
+    var student = await RegisterAsync("resource.module.exclude.student@example.com");
+    await EnrollAsync(student.AccessToken, courseId);
+    var studentBody = await CreateStudentResourceAsync(student.AccessToken, moduleId, "Student upload");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/modules/{moduleId}/resources",
+        teacher.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var resources = await response.Content.ReadFromJsonAsync<List<ResourceDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(resources);
+    Assert.Contains(resources, r => r.Id == normalId);
+    Assert.DoesNotContain(resources, r => r.Id == studentBody);
+  }
+
+  [Fact]
+  public async Task GetModuleStudentResources_AsTeacher_ReturnsAllLatestFirst()
+  {
+    var teacher = await CreateTeacherAsync("resource.studentlist.teacher@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+
+    var studentA = await RegisterAsync("resource.studentlist.a@example.com");
+    await EnrollAsync(studentA.AccessToken, courseId);
+    var studentB = await RegisterAsync("resource.studentlist.b@example.com");
+    await EnrollAsync(studentB.AccessToken, courseId);
+
+    var firstId = await CreateStudentResourceAsync(studentA.AccessToken, moduleId, "First upload");
+    var secondId = await CreateStudentResourceAsync(studentB.AccessToken, moduleId, "Second upload");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/modules/{moduleId}/student-resources",
+        teacher.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var resources = await response.Content.ReadFromJsonAsync<List<ResourceDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(resources);
+    Assert.Contains(resources, r => r.Id == firstId);
+    Assert.Contains(resources, r => r.Id == secondId);
+
+    var ids = resources.Select(r => r.Id).ToList();
+    Assert.True(ids.IndexOf(secondId) < ids.IndexOf(firstId), "Latest submission should be listed first.");
+  }
+
+  [Fact]
+  public async Task GetModuleStudentResources_AsStudent_ReturnsOnlyOwn()
+  {
+    var teacher = await CreateTeacherAsync("resource.studentlist.own@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+
+    var studentA = await RegisterAsync("resource.studentlist.own.a@example.com");
+    await EnrollAsync(studentA.AccessToken, courseId);
+    var studentB = await RegisterAsync("resource.studentlist.own.b@example.com");
+    await EnrollAsync(studentB.AccessToken, courseId);
+
+    var ownId = await CreateStudentResourceAsync(studentA.AccessToken, moduleId, "A upload");
+    var otherId = await CreateStudentResourceAsync(studentB.AccessToken, moduleId, "B upload");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/modules/{moduleId}/student-resources",
+        studentA.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var resources = await response.Content.ReadFromJsonAsync<List<ResourceDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(resources);
+    Assert.Contains(resources, r => r.Id == ownId);
+    Assert.DoesNotContain(resources, r => r.Id == otherId);
+  }
+
+  [Fact]
+  public async Task GetModuleStudentResources_AsNonMember_ReturnsForbidden()
+  {
+    var teacher = await CreateTeacherAsync("resource.studentlist.foreign@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+
+    var outsider = await RegisterAsync("resource.studentlist.foreign.outsider@example.com");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        $"/api/modules/{moduleId}/student-resources",
+        outsider.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetUserResources_ExcludesStudentSubmissions()
+  {
+    var teacher = await CreateTeacherAsync("resource.mine.exclude@example.com");
+    var courseId = await CreateCourseAsync(teacher.AccessToken);
+    var moduleId = await CreateModuleAsync(teacher.AccessToken, courseId);
+
+    var student = await RegisterAsync("resource.mine.exclude.student@example.com");
+    await EnrollAsync(student.AccessToken, courseId);
+    var submittedId = await CreateStudentResourceAsync(student.AccessToken, moduleId, "Hidden upload");
+
+    var response = await SendAuthorizedAsync(
+        HttpMethod.Get,
+        "/api/resources/mine",
+        student.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var resources = await response.Content.ReadFromJsonAsync<List<ResourceDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(resources);
+    Assert.DoesNotContain(resources, r => r.Id == submittedId);
+  }
 }

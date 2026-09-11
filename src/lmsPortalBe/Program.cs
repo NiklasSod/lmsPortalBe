@@ -73,6 +73,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperProfile));
 
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
 builder.Services.AddControllers();

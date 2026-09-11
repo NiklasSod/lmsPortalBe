@@ -5,6 +5,7 @@ using lmsPortalBe.Data;
 using lmsPortalBe.DTOs.Course;
 using lmsPortalBe.DTOs.Resource;
 using lmsPortalBe.Models;
+using lmsPortalBe.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +18,8 @@ namespace lmsPortalBe.Controllers
   public class ResourcesController(
       ILmsPortalContext context,
       IMapper mapper,
-      UserManager<ApplicationUser> _userManager)
+      UserManager<ApplicationUser> _userManager,
+      INotificationService _notifications)
       : CoursePortalControllerBase(context, mapper)
   {
 
@@ -272,6 +274,18 @@ namespace lmsPortalBe.Controllers
 
       _context.Resources.Add(resource);
       await _context.SaveChangesAsync();
+
+      if (!isStudentOnly && module is not null)
+      {
+        await _notifications.NotifyCourseStudentsAsync(
+            module.CourseId,
+            NotificationType.ResourceAdded,
+            "New resource added",
+            $"'{resource.DisplayName}' was added to the module '{module.Name}'.",
+            CurrentUserId,
+            moduleId: module.Id,
+            resourceId: resource.Id);
+      }
 
       return CreatedAtAction(nameof(GetResource), new { id = resource.Id }, _mapper.Map<ResourceDto>(resource));
     }

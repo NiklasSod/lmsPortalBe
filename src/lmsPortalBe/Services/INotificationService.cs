@@ -17,6 +17,7 @@ namespace lmsPortalBe.Services
         int? moduleId = null,
         int? activityId = null,
         int? resourceId = null,
+        int? submissionId = null,
         CancellationToken cancellationToken = default);
   }
 }

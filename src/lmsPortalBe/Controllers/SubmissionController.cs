@@ -2,6 +2,7 @@ using AutoMapper;
 using lmsPortalBe.Data;
 using lmsPortalBe.DTOs.Course;
 using lmsPortalBe.Models;
+using lmsPortalBe.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,9 +12,11 @@ namespace lmsPortalBe.Controllers
   [Route("api/[controller]")]
   public class SubmissionsController(
       ILmsPortalContext context,
-      IMapper mapper)
+      IMapper mapper,
+      INotificationService notifications)
       : CoursePortalControllerBase(context, mapper)
   {
+        protected readonly INotificationService _notifications = notifications;
 
     [HttpGet]
     [Authorize(Roles = "admin")]
@@ -235,6 +238,14 @@ namespace lmsPortalBe.Controllers
       submission.GradedAt = DateTime.UtcNow;
 
       await _context.SaveChangesAsync();
+
+      await _notifications.NotifyCourseStudentsAsync(
+            submission.Assignment!.Module.CourseId,
+            submission.Status == AssignmentStatus.Approved ? NotificationType.SubmissionApproved : NotificationType.SubmissionReturned,
+            "Feedback on assignment",
+            $"'Submission for {submission.Assignment.Name ?? assignmentId.ToString()}' was '{submission.Status}'.",
+            CurrentUserId,
+            submissionId: submission.Id);
 
       return Ok(_mapper.Map<SubmissionDto>(submission));
     }

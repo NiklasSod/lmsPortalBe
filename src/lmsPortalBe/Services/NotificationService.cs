@@ -1,4 +1,5 @@
 using lmsPortalBe.Data;
+using lmsPortalBe.Migrations;
 using lmsPortalBe.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,7 @@ namespace lmsPortalBe.Services
         int? moduleId = null,
         int? activityId = null,
         int? resourceId = null,
+        int? submissionId = null,
         CancellationToken cancellationToken = default)
     {
       var studentIds = await _context.CourseEnrollments
@@ -38,6 +40,7 @@ namespace lmsPortalBe.Services
         ModuleId = moduleId,
         ActivityId = activityId,
         ResourceId = resourceId,
+        SubmissionId = submissionId,
         CreatedAt = DateTime.UtcNow
       };
 

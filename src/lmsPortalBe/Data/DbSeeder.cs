@@ -386,6 +386,40 @@ public static class DbSeeder
       }
     }
 
+    // RESUBMISSIONS — give the first student in each course a full
+    // hand-in → rejected → resubmitted history so the frontend has data to
+    // exercise the per-assignment/student history and new deadlines.
+    foreach (var course in new[] { mathCourse, historyCourse, csCourse })
+    {
+      var student = seededStudents.First(s => s.Course.Id == course.Id).Student;
+      var assignment = seededAssignments
+          .Where(a => a.Course.Id == course.Id)
+          .OrderBy(a => a.Assignment.DueDate)
+          .Select(a => a.Assignment)
+          .First();
+
+      var original = context.Submissions.Local
+          .FirstOrDefault(s => s.AssignmentId == assignment.Id && s.StudentId == student.Id);
+      if (original is null)
+      {
+        continue;
+      }
+
+      original.HandinDate = DateTime.UtcNow.AddDays(-5);
+      original.Status = AssignmentStatus.Revision;
+      original.Feedback = "Please revise section two and resubmit.";
+      original.GradedAt = DateTime.UtcNow.AddDays(-3);
+
+      context.Submissions.Add(new Submission
+      {
+        AssignmentId = assignment.Id,
+        StudentId = student.Id,
+        Content = $"Resubmission by {student.FirstName} {student.LastName} for '{assignment.Name}'.",
+        Status = AssignmentStatus.HandedIn,
+        HandinDate = DateTime.UtcNow.AddDays(-1)
+      });
+    }
+
     await context.SaveChangesAsync();
 
     // RESOURCES — teacher course material and student uploads.

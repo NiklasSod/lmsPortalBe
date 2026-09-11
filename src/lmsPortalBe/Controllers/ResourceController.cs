@@ -1,5 +1,6 @@
 
 using System.Data;
+using System.Reflection.Metadata.Ecma335;
 using AutoMapper;
 using lmsPortalBe.Data;
 using lmsPortalBe.DTOs.Course;
@@ -275,15 +276,40 @@ namespace lmsPortalBe.Controllers
       _context.Resources.Add(resource);
       await _context.SaveChangesAsync();
 
-      if (!isStudentOnly && module is not null)
+      if (!isStudentOnly && module is not null) // TODO: make this work for courses and activities
       {
+        int? courseId = null!;
+        string? message = null!;
+
+        if (module is not null)
+        {
+          courseId = module.CourseId;
+          message = $"'{resource.DisplayName}' was added to the module '{module.Name}'.";
+        } else if (course is not null)
+        {
+          courseId = course.Id;
+          message = $"'{resource.DisplayName}' was added to the course '{course.Name}'.";
+
+        } else if (activity is not null)
+        {
+          courseId = activity.Module.CourseId;
+          message = $"'{resource.DisplayName}' was added to the activity '{activity.Name}'.";
+
+        }
+
+        if (courseId is null)
+        {
+          return NotFound("Parent course for new resource not found.");
+        }
+
         await _notifications.NotifyCourseStudentsAsync(
-            module.CourseId,
+            (int)courseId,
             NotificationType.ResourceAdded,
             "New resource added",
-            $"'{resource.DisplayName}' was added to the module '{module.Name}'.",
+            message ?? $"'{resource.DisplayName}' was created.",
             CurrentUserId,
-            moduleId: module.Id,
+            moduleId: module?.Id,
+            activityId: activity?.Id,
             resourceId: resource.Id);
       }
 

@@ -15,6 +15,8 @@ namespace lmsPortalBe.Data
         DbSet<Submission> Submissions { get; set; }
         DbSet<UserProfile> UserProfiles { get; set; }
         DbSet<Resource> Resources { get; set; }
+        DbSet<Notification> Notifications { get; set; }
+        DbSet<UserNotification> UserNotifications { get; set; }
 
         DatabaseFacade Database { get; }
 

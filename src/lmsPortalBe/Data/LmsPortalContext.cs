@@ -16,6 +16,8 @@ namespace lmsPortalBe.Data
         public DbSet<UserProfile> UserProfiles { get; set; } = null!;
         public DbSet<Submission> Submissions { get; set; } = null!;
         public DbSet<Resource> Resources { get; set; } = null!;
+        public DbSet<Notification> Notifications { get; set; } = null!;
+        public DbSet<UserNotification> UserNotifications { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -148,6 +150,37 @@ namespace lmsPortalBe.Data
                     .WithMany(u => u.Submissions)
                     .HasForeignKey(e => e.AssignmentId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<Notification>(entity =>
+            {
+                entity.ToTable("lmsNotification");
+
+                entity.HasIndex(e => e.CreatedAt);
+
+                // Keep the notification when the actor (teacher/admin) is deleted.
+                entity.HasOne(e => e.Actor)
+                    .WithMany()
+                    .HasForeignKey(e => e.ActorId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<UserNotification>(entity =>
+            {
+                entity.ToTable("lmsUserNotification");
+
+                entity.HasIndex(e => new { e.UserId, e.NotificationId }).IsUnique();
+                entity.HasIndex(e => new { e.UserId, e.IsSeen });
+
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Notification)
+                    .WithMany(n => n.Recipients)
+                    .HasForeignKey(e => e.NotificationId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

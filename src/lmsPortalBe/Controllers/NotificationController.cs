@@ -197,19 +197,31 @@ namespace lmsPortalBe.Controllers
       return Ok(notifications.Select(_mapper.Map<NotificationDto>));
     }
 
-    [HttpPatch("{id:int}")]
-    public async Task<IActionResult> UpdateUserNotification(int id, UpdateActivityRequestDto dto)
+    [HttpPatch("/api/usernotifications/{id:int}")]
+    public async Task<IActionResult> UpdateUserNotification(int id, UpdateUserNotificationRequestDto dto)
     {
-      var activity = await _context.Activities.FirstOrDefaultAsync(a => a.Id == id);
-      if (activity is null)
+      var notification = await _context.UserNotifications.FirstOrDefaultAsync(a => a.Id == id);
+      if (notification is null)
       {
         return NotFound();
       }
 
+      if (dto.IsSeen)
+      {
+        notification.IsSeen = true;
+        notification.SeenAt ??= DateTime.UtcNow;
+      }
+      else
+      {
+        BadRequest("Cannot mark a notification as unseen.");
+      }
+
       await _context.SaveChangesAsync();
 
-      return Ok(_mapper.Map<ActivityDto>(activity));
+      return Ok(_mapper.Map<UserNotificationDto>(notification));
     }
+
+    
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteNotification(int id)

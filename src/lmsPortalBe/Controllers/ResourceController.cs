@@ -275,16 +275,40 @@ namespace lmsPortalBe.Controllers
       _context.Resources.Add(resource);
       await _context.SaveChangesAsync();
 
-      if (!isStudentOnly && module is not null)
+      if (!isStudentOnly)
       {
-        await _notifications.NotifyCourseStudentsAsync(
-            module.CourseId,
-            NotificationType.ResourceAdded,
-            "New resource added",
-            $"'{resource.DisplayName}' was added to the module '{module.Name}'.",
-            CurrentUserId,
-            moduleId: module.Id,
-            resourceId: resource.Id);
+        if (module is not null)
+        {
+          await _notifications.NotifyCourseStudentsAsync(
+              module.CourseId,
+              NotificationType.ResourceAdded,
+              "New resource added",
+              $"'{resource.DisplayName}' was added to the module '{module.Name}'.",
+              CurrentUserId,
+              moduleId: module.Id,
+              resourceId: resource.Id);
+        }
+        else if (activity is not null)
+        {
+          await _notifications.NotifyCourseStudentsAsync(
+              activity.Module.CourseId,
+              NotificationType.ResourceAdded,
+              "New resource added",
+              $"'{resource.DisplayName}' was added to the activity '{activity.Name}'.",
+              CurrentUserId,
+              activityId: activity.Id,
+              resourceId: resource.Id);
+        }
+        else if (course is not null)
+        {
+          await _notifications.NotifyCourseStudentsAsync(
+              course.Id,
+              NotificationType.ResourceAdded,
+              "New resource added",
+              $"'{resource.DisplayName}' was added to the course '{course.Name}'.",
+              CurrentUserId,
+              resourceId: resource.Id);
+        }
       }
 
       return CreatedAtAction(nameof(GetResource), new { id = resource.Id }, _mapper.Map<ResourceDto>(resource));

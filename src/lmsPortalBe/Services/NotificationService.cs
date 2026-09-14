@@ -35,6 +35,7 @@ namespace lmsPortalBe.Services
         Title = title,
         Body = body,
         ActorId = actorId,
+        CourseId = courseId,
         ModuleId = moduleId,
         ActivityId = activityId,
         ResourceId = resourceId,
@@ -43,14 +44,46 @@ namespace lmsPortalBe.Services
 
       _context.Notifications.Add(notification);
 
-      foreach (var studentId in studentIds)
+      var recipients = studentIds
+          .Select(studentId => new UserNotification
+          {
+            UserId = studentId,
+            Notification = notification
+          })
+          .ToList();
+
+      _context.UserNotifications.AddRange(recipients);
+
+      await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task NotifyStudentAsync(
+        string userId,
+        NotificationType type,
+        string title,
+        string body,
+        string actorId,
+        int? courseId = null,
+        int? submissionId = null,
+        CancellationToken cancellationToken = default)
+    {
+      var notification = new Notification
       {
-        _context.UserNotifications.Add(new UserNotification
-        {
-          UserId = studentId,
-          Notification = notification
-        });
-      }
+        Type = type,
+        Title = title,
+        Body = body,
+        ActorId = actorId,
+        CourseId = courseId,
+        SubmissionId = submissionId,
+        CreatedAt = DateTime.UtcNow
+      };
+
+      _context.Notifications.Add(notification);
+      _context.UserNotifications.Add(new UserNotification
+      {
+        UserId = userId,
+        Notification = notification
+      });
 
       await _context.SaveChangesAsync(cancellationToken);
     }

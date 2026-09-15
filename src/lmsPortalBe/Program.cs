@@ -110,6 +110,11 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<LmsPortalContext>();
     dbContext.Database.Migrate();
+
+    // SQLite on Railway runs on a network-attached volume, which is noticeably
+    // slower than local disk. WAL mode improves read concurrency and avoids
+    // full-file rewrites on writes. This setting persists in the database file.
+    await dbContext.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
 }
 
 await app.SeedAsync();

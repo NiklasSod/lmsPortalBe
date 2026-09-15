@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using lmsPortalBe.DTOs.Admin;
 using lmsPortalBe.DTOs.Auth;
+using lmsPortalBe.DTOs.Course;
 using lmsPortalBe.DTOs.User;
 using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Identity;
@@ -208,6 +209,53 @@ public class UserControllerTests : ApiTestBase, IClassFixture<TestWebApplication
     var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/users", student.AccessToken);
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetStudents_AsTeacher_ReturnsOnlyTheirStudents()
+  {
+    var student = await RegisterAsync("students.mine@example.com");
+    var teacher = await CreateTeacherAsync("students.teacher@example.com");
+
+    var createCourse = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/courses",
+        teacher.AccessToken,
+        new CreateCourseRequestDto
+        {
+          Name = "Teacher's Course",
+          Description = "Course for students endpoint test",
+          StartDate = new DateTime(2026, 3, 1),
+          EndDate = new DateTime(2026, 3, 31)
+        });
+    createCourse.EnsureSuccessStatusCode();
+    var course = await createCourse.Content.ReadFromJsonAsync<CourseSummaryDto>(TestContext.Current.CancellationToken);
+
+    var enroll = await SendAuthorizedAsync(
+        HttpMethod.Post,
+        "/api/courses/enroll",
+        student.AccessToken,
+        new EnrollRequestDto { CourseId = course!.Id });
+    enroll.EnsureSuccessStatusCode();
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/students", teacher.AccessToken);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var students = await response.Content.ReadFromJsonAsync<List<UserDto>>(TestContext.Current.CancellationToken);
+    Assert.NotNull(students);
+    Assert.Contains(students, u => u.Email == "students.mine@example.com");
+    Assert.DoesNotContain(students, u => u.Email == "students.teacher@example.com");
+  }
+
+  [Fact]
+  public async Task GetStudents_AsStudent_ReturnsForbidden()
+  {
+    var student = await RegisterAsync("students.forbidden@example.com");
+
+    var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/students", student.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
   }
 
   [Fact]

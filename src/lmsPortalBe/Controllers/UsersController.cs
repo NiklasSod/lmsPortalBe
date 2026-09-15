@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using lmsPortalBe.Data;
 using lmsPortalBe.DTOs.User;
 using lmsPortalBe.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -10,9 +12,12 @@ namespace lmsPortalBe.Controllers
   [ApiController]
   [Route("api/users")]
   [Authorize]
-  public class UsersController(UserManager<ApplicationUser> userManager) : ControllerBase
+  public class UsersController(
+      UserManager<ApplicationUser> userManager,
+      ILmsPortalContext context) : ControllerBase
   {
     private readonly UserManager<ApplicationUser> _userManager = userManager;
+    private readonly ILmsPortalContext _context = context;
 
     [HttpGet]
     public async Task<IActionResult> GetUsers()
@@ -30,6 +35,40 @@ namespace lmsPortalBe.Controllers
       }
 
       return Ok(result);
+    }
+
+    [HttpGet("students")]
+    [Authorize(Roles = "teacher,admin")]
+    public async Task<IActionResult> GetStudents()
+    {
+      var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+          ?? throw new UnauthorizedAccessException("User identity not found.");
+
+      var query = _context.CourseEnrollments
+          .Where(e => e.Role == CourseRole.Student);
+
+      if (!User.IsInRole("admin"))
+      {
+        var taughtCourseIds = await _context.CourseEnrollments
+            .Where(e => e.UserId == currentUserId && e.Role == CourseRole.Teacher)
+            .Select(e => e.CourseId)
+            .ToListAsync();
+
+        query = query.Where(e => taughtCourseIds.Contains(e.CourseId));
+      }
+
+      var studentIds = await query
+          .Select(e => e.UserId)
+          .Distinct()
+          .ToListAsync();
+
+      var students = await _userManager.Users
+          .Where(u => studentIds.Contains(u.Id))
+          .OrderBy(u => u.LastName)
+          .ThenBy(u => u.FirstName)
+          .ToListAsync();
+
+      return Ok(students.Select(u => ToDto(u, ["student"])));
     }
 
     [HttpGet("{id}")]

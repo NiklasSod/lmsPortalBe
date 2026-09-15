@@ -2,6 +2,7 @@ using AutoMapper;
 using lmsPortalBe.Data;
 using lmsPortalBe.DTOs.Course;
 using lmsPortalBe.Models;
+using lmsPortalBe.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,8 @@ namespace lmsPortalBe.Controllers
   [Route("api/[controller]")]
   public class SubmissionsController(
       ILmsPortalContext context,
-      IMapper mapper)
+      IMapper mapper,
+      INotificationService _notifications)
       : CoursePortalControllerBase(context, mapper)
   {
 
@@ -97,6 +99,34 @@ namespace lmsPortalBe.Controllers
       var submissions = await _context.Submissions
           .Where(s => s.AssignmentId == assignmentId)
           .OrderByDescending(s => s.HandinDate)
+          .ToListAsync();
+
+      return Ok(submissions.Select(_mapper.Map<SubmissionDto>));
+    }
+
+    [HttpGet("assignment/{assignmentId:int}/student/{studentId}")]
+    public async Task<IActionResult> GetStudentAssignmentSubmissions(int assignmentId, string studentId)
+    {
+      var assignment = await _context.Assignments
+          .Include(a => a.Module)
+          .FirstOrDefaultAsync(a => a.Id == assignmentId);
+      if (assignment is null)
+      {
+        return NotFound();
+      }
+
+      var isAdmin = User.IsInRole("admin");
+      var isOwnHistory = studentId == CurrentUserId;
+      var isCourseTeacher = await IsCourseTeacherAsync(assignment.Module.CourseId);
+
+      if (!isAdmin && !isOwnHistory && !isCourseTeacher)
+      {
+        return Forbid();
+      }
+
+      var submissions = await _context.Submissions
+          .Where(s => s.AssignmentId == assignmentId && s.StudentId == studentId)
+          .OrderBy(s => s.Id)
           .ToListAsync();
 
       return Ok(submissions.Select(_mapper.Map<SubmissionDto>));
@@ -188,6 +218,8 @@ namespace lmsPortalBe.Controllers
         return BadRequest("Provide feedback and/or a status to grade the submission.");
       }
 
+      NotificationType? notificationType = null;
+
       if (dto.Status is not null)
       {
         if (!Enum.TryParse<AssignmentStatus>(dto.Status, ignoreCase: true, out var status)
@@ -197,6 +229,9 @@ namespace lmsPortalBe.Controllers
         }
 
         submission.Status = status;
+        notificationType = status == AssignmentStatus.Approved
+            ? NotificationType.SubmissionApproved
+            : NotificationType.SubmissionReturned;
       }
 
       if (dto.Feedback is not null)
@@ -204,7 +239,25 @@ namespace lmsPortalBe.Controllers
         submission.Feedback = dto.Feedback;
       }
 
+      submission.GradedAt = DateTime.UtcNow;
+
       await _context.SaveChangesAsync();
+
+      if (notificationType is not null && submission.Assignment is { } assignment)
+      {
+        var (title, body) = notificationType == NotificationType.SubmissionApproved
+            ? ("Submission approved", $"Your submission for '{assignment.Name}' was approved.")
+            : ("Submission returned for revision", $"Your submission for '{assignment.Name}' was returned for revision.");
+
+        await _notifications.NotifyStudentAsync(
+            submission.StudentId,
+            notificationType.Value,
+            title,
+            body,
+            CurrentUserId,
+            courseId: assignment.Module.CourseId,
+            submissionId: submission.Id);
+      }
 
       return Ok(_mapper.Map<SubmissionDto>(submission));
     }

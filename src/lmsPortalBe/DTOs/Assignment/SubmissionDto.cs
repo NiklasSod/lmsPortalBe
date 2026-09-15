@@ -14,6 +14,7 @@ public class SubmissionDto
   public string Feedback { get; set; } = string.Empty;
 
   public DateTime HandinDate { get; set; } = DateTime.UtcNow;
+  public DateTime? GradedAt { get; set; }
   [Required]
   public string Status { get; set; } = string.Empty;
 }

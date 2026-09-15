@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using lmsPortalBe.Data;
 
@@ -10,9 +11,11 @@ using lmsPortalBe.Data;
 namespace lmsPortalBe.Migrations
 {
     [DbContext(typeof(LmsPortalContext))]
-    partial class LmsPortalContextModelSnapshot : ModelSnapshot
+    [Migration("20260910120000_AddSubmissionGradedAt")]
+    partial class AddSubmissionGradedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -364,53 +367,6 @@ namespace lmsPortalBe.Migrations
                     b.ToTable("lmsCourseModule", (string)null);
                 });
 
-            modelBuilder.Entity("lmsPortalBe.Models.Notification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("ActivityId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ActorId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("CourseId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("ModuleId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("ResourceId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("SubmissionId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActorId");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.ToTable("lmsNotification", (string)null);
-                });
-
             modelBuilder.Entity("lmsPortalBe.Models.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
@@ -530,37 +486,6 @@ namespace lmsPortalBe.Migrations
                     b.HasIndex("StudentId", "AssignmentId");
 
                     b.ToTable("lmsSubmission", (string)null);
-                });
-
-            modelBuilder.Entity("lmsPortalBe.Models.UserNotification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsSeen")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("NotificationId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("SeenAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NotificationId");
-
-                    b.HasIndex("UserId", "IsSeen");
-
-                    b.HasIndex("UserId", "NotificationId")
-                        .IsUnique();
-
-                    b.ToTable("lmsUserNotification", (string)null);
                 });
 
             modelBuilder.Entity("lmsPortalBe.Models.UserProfile", b =>
@@ -692,16 +617,6 @@ namespace lmsPortalBe.Migrations
                     b.Navigation("Course");
                 });
 
-            modelBuilder.Entity("lmsPortalBe.Models.Notification", b =>
-                {
-                    b.HasOne("lmsPortalBe.Models.ApplicationUser", "Actor")
-                        .WithMany()
-                        .HasForeignKey("ActorId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Actor");
-                });
-
             modelBuilder.Entity("lmsPortalBe.Models.RefreshToken", b =>
                 {
                     b.HasOne("lmsPortalBe.Models.ApplicationUser", "User")
@@ -763,25 +678,6 @@ namespace lmsPortalBe.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("lmsPortalBe.Models.UserNotification", b =>
-                {
-                    b.HasOne("lmsPortalBe.Models.Notification", "Notification")
-                        .WithMany("Recipients")
-                        .HasForeignKey("NotificationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("lmsPortalBe.Models.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Notification");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("lmsPortalBe.Models.UserProfile", b =>
                 {
                     b.HasOne("lmsPortalBe.Models.ApplicationUser", "User")
@@ -830,11 +726,6 @@ namespace lmsPortalBe.Migrations
                     b.Navigation("Assignments");
 
                     b.Navigation("Resources");
-                });
-
-            modelBuilder.Entity("lmsPortalBe.Models.Notification", b =>
-                {
-                    b.Navigation("Recipients");
                 });
 #pragma warning restore 612, 618
         }

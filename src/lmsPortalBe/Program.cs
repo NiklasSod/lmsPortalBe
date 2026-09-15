@@ -9,7 +9,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
-DotNetEnv.Env.Load();
+// Load a local .env only if one exists. In production (Railway) environment
+// variables are injected by the platform and there is no .env file.
+var envFile = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+if (File.Exists(envFile))
+{
+    DotNetEnv.Env.Load(envFile);
+}
 
 var builder = WebApplication.CreateBuilder(args);
 

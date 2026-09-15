@@ -43,7 +43,18 @@ public static class DbSeeder
     }
 
     await SeedAdminUserAsync(userManager, configuration, logger);
-    await SeedDemoDataAsync(userManager, context, logger);
+
+    var environment = services.GetRequiredService<IHostEnvironment>();
+    if (environment.IsDevelopment())
+    {
+      await SeedDemoDataAsync(userManager, context, logger);
+    }
+    else
+    {
+      logger.LogInformation(
+          "Skipping demo data seeding (environment: {Environment}).",
+          environment.EnvironmentName);
+    }
   }
 
   private static async Task SeedAdminUserAsync(

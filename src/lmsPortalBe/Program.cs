@@ -4,6 +4,7 @@ using lmsPortalBe.MappingProfiles;
 using lmsPortalBe.Models;
 using lmsPortalBe.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -20,6 +21,15 @@ var jwtSecret = builder.Configuration[JwtConstants.Secret]
 var jwtIssuer = builder.Configuration[JwtConstants.Issuer] ?? "lmsPortalBe";
 var jwtAudience = builder.Configuration[JwtConstants.Audience] ?? "lmsPortalBe";
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+
+// Allows overriding CORS origins without a code change (e.g. on Railway when the
+// frontend domain changes). Comma-separated list of origins.
+var corsOriginsOverride = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
+if (!string.IsNullOrWhiteSpace(corsOriginsOverride))
+{
+    allowedOrigins = corsOriginsOverride
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
 
 builder.Services.AddDbContext<LmsPortalContext>(options =>
     options.UseSqlite(connectionString));
@@ -61,6 +71,15 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// Trust the reverse proxy (Railway) for X-Forwarded-Proto so HTTPS redirection
+// works correctly behind TLS-terminating proxies.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
@@ -94,10 +113,21 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-app.Run();
+// Railway injects the PORT env var; bind to it when present so the app is
+// reachable behind Railway's edge. Falls back to default Kestrel binding locally.
+var port = Environment.GetEnvironmentVariable("PORT");
+if (string.IsNullOrWhiteSpace(port))
+{
+    app.Run();
+}
+else
+{
+    app.Run($"http://0.0.0.0:{port}");
+}
